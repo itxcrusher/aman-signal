@@ -29,10 +29,14 @@ BANDWIDTH_MBPS="${AMANSIGNAL_BANDWIDTH:-5}"
 DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
+# --region sets the endpoint; RegionId is a separate required parameter on several
+# of these APIs, and omitting it makes discovery calls return nothing rather than
+# error, which reads as "no zones exist" instead of "you forgot a parameter".
 ali() { aliyun --profile "$PROFILE" --region "$REGION" "$@"; }
+ali_r() { aliyun --profile "$PROFILE" --region "$REGION" "$@" --RegionId "$REGION"; }
 
 command -v aliyun >/dev/null || { echo "aliyun CLI not found. Install it first." >&2; exit 1; }
-if ! ali ecs DescribeRegions --output cols=RegionId rows=Regions.Region >/dev/null 2>&1; then
+if ! ali ecs DescribeRegions >/dev/null 2>&1; then
   echo "Cannot authenticate. Run: aliyun configure --profile $PROFILE" >&2
   exit 1
 fi
@@ -72,15 +76,30 @@ if [[ -z "$VPC_ID" ]]; then
 fi
 echo "    VPC: ${VPC_ID:-<dry-run>}"
 
-ZONE="$(ali ecs DescribeZones --output json 2>/dev/null \
+# Pick a zone that actually has capacity for this instance type. Availability
+# varies per type per zone, so taking the region's first zone launches into a
+# zone that may not offer it.
+ZONE="$(ali_r ecs DescribeAvailableResource --DestinationResource InstanceType \
+  --InstanceChargeType PostPaid 2>/dev/null \
   | python -c "
 import json,sys
+want='$INSTANCE_TYPE'
 try:
-  z=json.load(sys.stdin)['Zones']['Zone']
-  print(z[0]['ZoneId'] if z else '')
+  zones=json.load(sys.stdin)['AvailableZones']['AvailableZone']
 except Exception:
-  print('')" || true)"
-echo "    Zone: ${ZONE:-<unknown>}"
+  print(''); raise SystemExit
+for z in zones:
+    for r in z.get('AvailableResources',{}).get('AvailableResource',[]):
+        for s in r.get('SupportedResources',{}).get('SupportedResource',[]):
+            if s.get('Value')==want and s.get('Status')=='Available':
+                print(z['ZoneId']); raise SystemExit
+print('')" || true)"
+if [[ -z "$ZONE" ]]; then
+  echo "    No zone in $REGION has capacity for $INSTANCE_TYPE." >&2
+  echo "    Set AMANSIGNAL_INSTANCE_TYPE to an available type and re-run." >&2
+  exit 1
+fi
+echo "    Zone: $ZONE (has capacity for $INSTANCE_TYPE)"
 
 find_vsw() {
   ali vpc DescribeVSwitches --VpcId "$VPC_ID" --VSwitchName "${NAME}-vsw" \
@@ -131,17 +150,26 @@ if [[ -n "${VPC_ID:-}" ]]; then
 fi
 
 # --- Image --------------------------------------------------------------------
-IMAGE_ID="$(ali ecs DescribeImages --OSType linux --ImageOwnerAlias system \
-  --InstanceType "$INSTANCE_TYPE" --output json 2>/dev/null \
+# Plain x64 server images only. The GPU/CUDA and arm64 builds share the ubuntu
+# prefix and would otherwise be selected; neither runs this workload.
+IMAGE_ID="$(ali_r ecs DescribeImages --OSType linux --ImageOwnerAlias system \
+  --PageSize 100 2>/dev/null \
   | python -c "
-import json,sys
+import json,sys,re
 try:
-  imgs=json.load(sys.stdin)['Images']['Image']
+  imgs=[i['ImageId'] for i in json.load(sys.stdin)['Images']['Image']]
 except Exception:
   print(''); raise SystemExit
-u=[i for i in imgs if 'ubuntu_22' in i['ImageId'] or 'ubuntu_24' in i['ImageId']]
-print((u or imgs)[0]['ImageId'] if (u or imgs) else '')" || true)"
-echo "    Image: ${IMAGE_ID:-<none found>}"
+ok=[i for i in imgs
+    if re.match(r'ubuntu_(22|24)_', i) and 'x64' in i
+    and 'gpu' not in i and 'cuda' not in i]
+ok.sort(reverse=True)
+print(ok[0] if ok else '')" || true)"
+if [[ -z "$IMAGE_ID" ]]; then
+  echo "    No suitable Ubuntu x64 image found in $REGION." >&2
+  exit 1
+fi
+echo "    Image: $IMAGE_ID"
 
 if $DRY_RUN; then
   echo
