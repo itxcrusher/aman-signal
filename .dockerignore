@@ -1,0 +1,10 @@
+.next
+node_modules
+data
+eval-data
+shots
+.git
+.env
+AGENTS.md
+CLAUDE.md
+*.log

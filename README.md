@@ -61,6 +61,8 @@ Remaining error is mostly orthographic; the citizen-facing confirmation step ("W
 
 Qwen3.5-Omni via Alibaba Cloud Model Studio (OpenAI-compatible API) for speech, image and text understanding; text embeddings for duplicate candidates; relational store for reports, incidents and audit history; object storage for media; a mobile-first citizen PWA and a dispatcher dashboard. Model processing runs behind an asynchronous job pipeline so intake never blocks on inference. Flood response is the first scenario; the intake is adapter-shaped so the same engine can later ingest WhatsApp, SMS or hotline transcripts and extend to other disaster types.
 
+Deployment, configuration and operating notes: [docs/deployment.md](docs/deployment.md).
+
 ## Reproduce the benchmarks
 
 ```bash
