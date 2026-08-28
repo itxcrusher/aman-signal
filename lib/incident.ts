@@ -88,7 +88,8 @@ export function buildIncidentView(incident: IncidentRow, reports: ReportRow[]): 
   const conflicts: Conflict[] = [];
 
   // Road access is the field reports most often disagree on, and the disagreement
-  // is operationally meaningful: it decides whether a vehicle can be sent.
+  // is operationally meaningful: it decides whether a vehicle can be sent. A single
+  // report is never "disputed"; that state exists only here, between reports.
   const roadValues = countBy(
     extractions.map((e) => e.road_access).filter((v) => v !== "unknown"),
   );

@@ -27,10 +27,16 @@ incident_type (one of: flood_entrapment, flood_damage, medical_emergency, blocke
 urgency_indicators (array, each one of: trapped_people, medical_need, rising_water, blocked_access, no_safe_route, structural_damage)
 people_affected (integer, or null if not stated)
 vulnerable_people (array, each one of: elderly, children, disabled, pregnant, injured)
-road_access (one of: open, blocked, disputed, unknown)
+road_access (one of: open, partial, blocked, unknown)
 resources_required (array, each one of: rescue_boat, medical_team, evacuation, food_water, shelter)
 locations_mentioned (array of strings, preserved exactly as the reporter said them, including colloquial descriptions)
 missing_information (array of strings: what a dispatcher would still need to ask)
+
+How to judge road_access, which reporters describe in degrees:
+"blocked" means nothing can get through.
+"partial" means some traffic still passes but not all, for example a motorcycle or a person on foot can get through but a car or ambulance cannot. Phrases like "motorcycle guzar sakti hai" or "raasta poori tarah band nahi hua" mean partial, NOT blocked.
+"open" means normal access.
+"unknown" means the report does not say.
 
 Rules you must follow:
 Never invent details that are not in the report. If something was not stated, use null or an empty array and name the gap in missing_information.

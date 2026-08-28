@@ -33,7 +33,13 @@ export const VULNERABLE_GROUPS = [
   "injured",
 ] as const;
 
-export const ROAD_ACCESS = ["open", "blocked", "disputed", "unknown"] as const;
+/**
+ * Access as ONE report describes it. "disputed" is deliberately absent: a single
+ * report cannot dispute itself, and that state is derived at the incident level
+ * when linked reports disagree. "partial" is operationally decisive, since a
+ * motorcycle can carry medicine down a lane that no ambulance can enter.
+ */
+export const ROAD_ACCESS = ["open", "partial", "blocked", "unknown"] as const;
 
 export const RESOURCES = [
   "rescue_boat",
@@ -232,7 +238,14 @@ export function normaliseExtraction(raw: unknown): NormaliseResult {
     repairs.push("resources_required: normalised free text to enums");
   }
 
-  const road = toEnum(r.road_access, ROAD_ACCESS, { passable: "open", closed: "blocked" });
+  const road = toEnum(r.road_access, ROAD_ACCESS, {
+    passable: "open",
+    closed: "blocked",
+    disputed: "unknown",
+    partially_blocked: "partial",
+    partially_passable: "partial",
+    limited: "partial",
+  });
 
   const candidate = {
     language_detected: lang ?? "mixed",
