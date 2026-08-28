@@ -22,6 +22,25 @@ type Report = {
   } | null;
 };
 
+type PendingDup = {
+  id: string;
+  created_at: number;
+  raw_text: string | null;
+  summary: string | null;
+  urgency: string[];
+  people_affected: number | null;
+  locations: string[];
+  candidates: {
+    incident_id: string;
+    incident_summary: string | null;
+    incident_status: string;
+    similarity: number;
+    distance_m: number | null;
+    geo_confirmed: boolean;
+    method: string;
+  }[];
+};
+
 type Incident = {
   id: string;
   status: string;
@@ -84,12 +103,18 @@ export default function OpsBoard() {
   const [err, setErr] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [team, setTeam] = useState<Record<string, string>>({});
+  const [pending, setPending] = useState<PendingDup[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/incidents", { cache: "no-store" });
-      const j = await res.json();
+      const [incRes, dupRes] = await Promise.all([
+        fetch("/api/incidents", { cache: "no-store" }),
+        fetch("/api/duplicates", { cache: "no-store" }),
+      ]);
+      const j = await incRes.json();
+      const d = await dupRes.json();
       setIncidents(j.incidents ?? []);
+      setPending(d.pending ?? []);
       setErr(null);
     } catch {
       setErr("Could not load incidents. Retrying automatically.");
@@ -140,6 +165,25 @@ export default function OpsBoard() {
     load();
   }
 
+  async function resolveDuplicate(reportId: string, body: Record<string, unknown>) {
+    if (!operator.trim()) {
+      setErr("Enter your name first: duplicate decisions are recorded against a person.");
+      return;
+    }
+    const res = await fetch("/api/duplicates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report_id: reportId, operator: operator.trim(), ...body }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(j.error ?? "Could not resolve the duplicate.");
+      return;
+    }
+    setErr(null);
+    load();
+  }
+
   return (
     <main className="min-h-screen bg-ground text-paper">
       <header className="border-b border-line px-6 py-4">
@@ -169,6 +213,62 @@ export default function OpsBoard() {
           <p role="alert" className="mb-4 rounded-lg bg-critical/15 px-4 py-3 text-sm text-red-300 ring-1 ring-critical/40">
             {err}
           </p>
+        ) : null}
+
+        {pending.length ? (
+          <section className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5">
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-amber-300">
+              Needs your judgement · {pending.length}
+            </h2>
+            <p className="mb-4 text-xs text-paper-soft">
+              These reports resemble an existing incident, but not closely enough to link
+              automatically. They are held rather than merged, because a wrong merge hides an
+              emergency.
+            </p>
+            <ul className="space-y-3">
+              {pending.map((p) => (
+                <li key={p.id} className="rounded-xl border border-line bg-surface p-4">
+                  <p className="mb-1 text-sm">{p.summary ?? p.raw_text}</p>
+                  <p className="mb-3 text-xs text-paper-soft">
+                    {timeAgo(p.created_at)}
+                    {p.people_affected !== null ? ` · ${p.people_affected} affected` : ""}
+                    {p.locations.length ? ` · ${p.locations.join(", ")}` : " · no location given"}
+                  </p>
+                  <div className="space-y-2">
+                    {p.candidates.map((c) => (
+                      <div
+                        key={c.incident_id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-2 px-3 py-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm">{c.incident_summary}</p>
+                          <p className="text-xs text-paper-soft">
+                            similarity {c.similarity} ·{" "}
+                            {c.geo_confirmed ? `${c.distance_m}m away` : "distance unknown"} ·{" "}
+                            {c.method}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => resolveDuplicate(p.id, { link_to: c.incident_id })}
+                          className="cursor-pointer rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white"
+                        >
+                          Same incident
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => resolveDuplicate(p.id, { separate: true })}
+                      className="cursor-pointer rounded-lg bg-surface-2 px-3 py-1.5 text-sm ring-1 ring-line hover:bg-surface"
+                    >
+                      This is a separate emergency
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
 
         {loading ? (

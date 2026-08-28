@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReport, updateReport, createIncident, audit } from "@/lib/db";
+import { findDuplicate } from "@/lib/dedup";
 import { ExtractionSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
@@ -64,21 +65,63 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const incidentId = createIncident(extraction, row.lat, row.lon);
+  // Does this report describe an emergency already known to the operators?
+  const decision = await findDuplicate(extraction, row.lat, row.lon);
+  const answerNote = answers.length ? ` answers=${answers.map((a) => a.field).join(",")}` : "";
+  const correctedNote = body.corrected !== undefined ? " corrected=yes" : "";
 
-  updateReport(rid, {
-    status: "confirmed",
+  if (decision.action === "possible") {
+    // Held, not merged and not split. A wrong merge hides an emergency; a wrong
+    // split only costs a second look, so the ambiguous case goes to a human.
+    updateReport(rid, {
+      status: "possible_duplicate",
+      extraction_json: JSON.stringify(extraction),
+      clarifications_json: JSON.stringify(answers),
+      dedup_json: JSON.stringify(decision.candidates),
+    });
+    // The citizen is told their report was received either way: duplicate review is
+    // an operational concern and must never surface as a failure to the reporter.
+    return NextResponse.json({
+      report_id: rid,
+      status: "received",
+      review: "possible_duplicate",
+      candidates: decision.candidates.length,
+    });
+  }
+
+  let incidentId: string;
+  if (decision.action === "link") {
+    incidentId = decision.incidentId;
+    updateReport(rid, {
+      status: "confirmed",
+      incident_id: incidentId,
+      extraction_json: JSON.stringify(extraction),
+      clarifications_json: JSON.stringify(answers),
+      dedup_json: JSON.stringify([decision.candidate]),
+    });
+    audit(
+      incidentId,
+      "ai",
+      "report_linked",
+      `report=${rid} similarity=${decision.candidate.similarity} distance=${decision.candidate.distanceM ?? "n/a"}m method=${decision.candidate.method}`,
+    );
+  } else {
+    incidentId = createIncident(extraction, row.lat, row.lon);
+    updateReport(rid, {
+      status: "confirmed",
+      incident_id: incidentId,
+      extraction_json: JSON.stringify(extraction),
+      clarifications_json: JSON.stringify(answers),
+      dedup_json: JSON.stringify(decision.candidates),
+    });
+  }
+
+  audit(incidentId, "citizen", "report_confirmed", `report=${rid}${answerNote}${correctedNote}`);
+
+  return NextResponse.json({
+    report_id: rid,
     incident_id: incidentId,
-    extraction_json: JSON.stringify(extraction),
-    clarifications_json: JSON.stringify(answers),
+    status: "confirmed",
+    linked: decision.action === "link",
   });
-
-  audit(
-    incidentId,
-    "citizen",
-    "report_confirmed",
-    `report=${rid}${answers.length ? ` answers=${answers.map((a) => a.field).join(",")}` : ""}${body.corrected !== undefined ? " corrected=yes" : ""}`,
-  );
-
-  return NextResponse.json({ report_id: rid, incident_id: incidentId, status: "confirmed" });
 }

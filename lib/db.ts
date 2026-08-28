@@ -29,6 +29,7 @@ const STATEMENTS = [
     repairs_json TEXT,
     provenance_json TEXT,
     clarifications_json TEXT,
+    dedup_json TEXT,
     model TEXT,
     latency_ms INTEGER
   )`,
@@ -61,6 +62,10 @@ export function db(): Database.Database {
   _db = new Database(path.join(DATA_DIR, "amansignal.db"));
   _db.pragma("journal_mode = WAL");
   for (const s of STATEMENTS) _db.prepare(s).run();
+  const cols = _db.prepare("PRAGMA table_info(reports)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "dedup_json")) {
+    _db.prepare("ALTER TABLE reports ADD COLUMN dedup_json TEXT").run();
+  }
   return _db;
 }
 
@@ -80,6 +85,7 @@ export type ReportRow = {
   extraction_json: string | null;
   repairs_json: string | null;
   clarifications_json: string | null;
+  dedup_json: string | null;
   model: string | null;
   latency_ms: number | null;
 };
@@ -104,10 +110,10 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
     .prepare(
       `INSERT INTO reports (id, created_at, status, incident_id, raw_text, audio_path,
         image_path, lat, lon, location_text, extraction_json, repairs_json,
-        clarifications_json, model, latency_ms)
+        clarifications_json, dedup_json, model, latency_ms)
        VALUES (@id, @created_at, @status, @incident_id, @raw_text, @audio_path,
         @image_path, @lat, @lon, @location_text, @extraction_json, @repairs_json,
-        @clarifications_json, @model, @latency_ms)`,
+        @clarifications_json, @dedup_json, @model, @latency_ms)`,
     )
     .run({
       created_at: Date.now(),
@@ -121,6 +127,7 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
       extraction_json: null,
       repairs_json: null,
       clarifications_json: null,
+      dedup_json: null,
       model: null,
       latency_ms: null,
       ...r,
@@ -135,7 +142,7 @@ export function getReport(rid: string): ReportRow | undefined {
 const REPORT_FIELDS = new Set([
   "status", "incident_id", "raw_text", "audio_path", "image_path", "lat", "lon",
   "location_text", "extraction_json", "repairs_json", "provenance_json",
-  "clarifications_json", "model", "latency_ms",
+  "clarifications_json", "dedup_json", "model", "latency_ms",
 ]);
 
 export function updateReport(rid: string, fields: Record<string, unknown>) {
@@ -175,6 +182,20 @@ export function listIncidents(): IncidentRow[] {
   return db()
     .prepare("SELECT * FROM incidents ORDER BY created_at DESC")
     .all() as IncidentRow[];
+}
+
+/** Reports held for an operator's duplicate judgement. */
+export function pendingDuplicates(): ReportRow[] {
+  return db()
+    .prepare("SELECT * FROM reports WHERE status = 'possible_duplicate' ORDER BY created_at DESC")
+    .all() as ReportRow[];
+}
+
+export function linkReportToIncident(rid: string, incidentId: string) {
+  db()
+    .prepare("UPDATE reports SET incident_id = ?, status = 'confirmed' WHERE id = ?")
+    .run(incidentId, rid);
+  db().prepare("UPDATE incidents SET updated_at = ? WHERE id = ?").run(Date.now(), incidentId);
 }
 
 export function reportsFor(incidentId: string): ReportRow[] {
