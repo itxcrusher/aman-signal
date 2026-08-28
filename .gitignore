@@ -54,3 +54,4 @@ CLAUDE.md
 data/
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+shots/

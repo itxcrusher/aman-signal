@@ -1,8 +1,7 @@
 @import "tailwindcss";
 
-/* Urdu (Nastaliq) for citizen-facing Urdu text, Naskh for dense operator UI,
-   Inter for Latin. Nastaliq needs far more line-height than Latin or it clips. */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+/* Fonts are self-hosted via next/font (app/layout.tsx): no runtime dependency on a
+   font CDN, which matters on poor connections and in the field. */
 
 @theme {
   /* Ground: calm slate, not alarm-red. Red is reserved for urgency signals so it
@@ -26,16 +25,16 @@
   /* Semantic. Only these three carry urgency meaning. */
   --color-critical: #dc2626;
   --color-warn: #d97706;
-  --color-ok: #059669;
+  --color-ok: #047857;
   --color-info: #2563eb;
 
   /* Brand accent: deep teal, calm and distinct from every semantic colour. */
   --color-brand: #0d7d76;
   --color-brand-soft: #0f9d94;
 
-  --font-latin: 'Inter', system-ui, sans-serif;
-  --font-urdu: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', serif;
-  --font-urdu-ui: 'Noto Sans Arabic', 'Noto Nastaliq Urdu', sans-serif;
+  --font-latin: var(--font-inter), system-ui, sans-serif;
+  --font-urdu: var(--font-nastaliq), var(--font-naskh), serif;
+  --font-urdu-ui: var(--font-naskh), var(--font-nastaliq), sans-serif;
 }
 
 :root {
@@ -48,20 +47,24 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Urdu text. Nastaliq clips descenders at normal line-height; 2.1 is the floor
-   that renders cleanly at UI sizes. Applied by class, not by :lang alone, so
-   mixed Urdu/Roman-Urdu/English content in one record renders correctly. */
+/* Nastaliq: for Urdu PROSE the reader reads as a sentence (the confirmation
+   summary, headings). Measured at 390px: multi-line Nastaliq clips descenders
+   below line-height 2.4, and needs block padding because the glyph box overflows
+   its line box. Never use it for scannable UI labels; that is what Naskh is for. */
 .urdu {
   font-family: var(--font-urdu);
-  line-height: 2.1;
+  line-height: 2.4;
+  padding-block: 0.15em;
   direction: rtl;
   text-align: right;
   font-size: 1.0625em;
 }
 
+/* Naskh: for LABELS and controls. Far more legible when scanned rather than read,
+   and it does not need Nastaliq's vertical space. */
 .urdu-ui {
   font-family: var(--font-urdu-ui);
-  line-height: 1.75;
+  line-height: 1.7;
   direction: rtl;
   text-align: right;
 }
@@ -70,6 +73,15 @@ body {
 .roman-urdu {
   font-family: var(--font-latin);
   direction: ltr;
+}
+
+/* English inside the RTL citizen surface. Without an explicit LTR direction the
+   bidi algorithm moves trailing punctuation to the visual start ("​.Describe what
+   is happening"), so every English string needs this, not just alignment. */
+.en {
+  direction: ltr;
+  text-align: right;
+  font-family: var(--font-latin);
 }
 
 /* Accessibility floor. The product is used one-handed, in bad light, under stress. */
