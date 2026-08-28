@@ -1,0 +1,150 @@
+{
+ "generated_at": "2026-08-28T15:24:59.647Z",
+ "results": [
+  {
+   "id": "ur-01-entrapment-full",
+   "note": "Urdu script, complete report with location, count and vulnerable people",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 1953,
+   "repairs": []
+  },
+  {
+   "id": "rmn-02-codeswitch",
+   "note": "Roman Urdu with English words mixed in, as typed on a phone",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 1128,
+   "repairs": []
+  },
+  {
+   "id": "hall-03-no-location",
+   "note": "HALLUCINATION TEST: no location stated anywhere",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [
+    "locations_mentioned (ghar)"
+   ],
+   "latency_ms": 915,
+   "repairs": []
+  },
+  {
+   "id": "hall-04-no-count",
+   "note": "HALLUCINATION TEST: people are trapped but no number is given",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 897,
+   "repairs": []
+  },
+  {
+   "id": "road-05-partial",
+   "note": "Partial access: a motorcycle passes where a car cannot",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 1040,
+   "repairs": []
+  },
+  {
+   "id": "road-06-open",
+   "note": "Access explicitly fine; only damage reported",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 1088,
+   "repairs": []
+  },
+  {
+   "id": "med-07-emergency",
+   "note": "Medical emergency compounded by flooding",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 1090,
+   "repairs": []
+  },
+  {
+   "id": "neg-08-not-emergency",
+   "note": "NEGATIVE CONTROL: an ordinary question, not an emergency",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 793,
+   "repairs": []
+  },
+  {
+   "id": "neg-09-weather-chat",
+   "note": "NEGATIVE CONTROL: mentions rain but reports no emergency",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 749,
+   "repairs": []
+  },
+  {
+   "id": "vague-10-minimal",
+   "note": "Extremely short report: almost everything is missing",
+   "ok": true,
+   "failures": [],
+   "invented": [],
+   "vague": [],
+   "latency_ms": 861,
+   "repairs": []
+  }
+ ],
+ "summary": {
+  "cases": 10,
+  "cases_passed": 10,
+  "assertions": 32,
+  "assertions_passed": 32,
+  "field_accuracy_pct": 100,
+  "hallucination_opportunities": 7,
+  "substantive_inventions": 0,
+  "vague_echoes": 1,
+  "substantive_rate_pct": 0,
+  "strict_rate_pct": 14.3,
+  "latency_ms": {
+   "p50": 1040,
+   "p95": 1953,
+   "max": 1953
+  }
+ },
+ "dedup": [
+  {
+   "id": "same-street",
+   "note": "Three reports of one flooded street; all three belong together",
+   "expect_same_cluster": true,
+   "distinct_incidents": 2,
+   "held_for_review": 1,
+   "ok": false
+  },
+  {
+   "id": "lookalike-far",
+   "note": "Near-identical wording, genuinely different households 13km apart. Must NOT cluster.",
+   "expect_same_cluster": false,
+   "distinct_incidents": 2,
+   "held_for_review": 0,
+   "ok": true
+  },
+  {
+   "id": "different-emergency-same-place",
+   "note": "Same street, unrelated emergency. Must NOT cluster.",
+   "expect_same_cluster": false,
+   "distinct_incidents": 2,
+   "held_for_review": 0,
+   "ok": true
+  }
+ ]
+}

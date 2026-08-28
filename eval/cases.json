@@ -1,0 +1,147 @@
+{
+  "description": "Labelled extraction cases for AmanSignal. Written in the register real reporters use: code-switched Roman Urdu, Urdu script, incomplete sentences, and colloquial locations. 'expect' lists fields whose value is stated in the report; 'must_be_absent' lists fields the report deliberately does NOT state, and any value there is a hallucination.",
+  "cases": [
+    {
+      "id": "ur-01-entrapment-full",
+      "note": "Urdu script, complete report with location, count and vulnerable people",
+      "text": "ہمارے گھر میں پانی بھر گیا ہے۔ میری امی اور دو چھوٹے بچے چھت پر پھنسے ہوئے ہیں۔ راستہ بند ہے، ایمبولینس نہیں آ سکتی۔ شاہ فیصل کالونی، مسجد کے سامنے۔",
+      "expect": {
+        "language_detected": "ur",
+        "incident_type": "flood_entrapment",
+        "people_affected": 3,
+        "road_access": "blocked",
+        "urgency_includes": ["trapped_people"],
+        "vulnerable_includes": ["elderly", "children"],
+        "locations_nonempty": true
+      },
+      "must_be_absent": []
+    },
+    {
+      "id": "rmn-02-codeswitch",
+      "note": "Roman Urdu with English words mixed in, as typed on a phone",
+      "text": "bhai urgent help chahiye, hamari street mein 4 feet pani hai, ground floor poora doob gaya, hum log upar hain lekin buzurg walid sahab ko medicine chahiye. Gulshan-e-Iqbal block 13",
+      "expect": {
+        "incident_type_one_of": ["flood_entrapment", "medical_emergency"],
+        "urgency_includes": ["medical_need"],
+        "vulnerable_includes": ["elderly"],
+        "locations_nonempty": true
+      },
+      "must_be_absent": []
+    },
+    {
+      "id": "hall-03-no-location",
+      "note": "HALLUCINATION TEST: no location stated anywhere",
+      "text": "pani ghar mein aa gaya hai, jaldi koi aaye, bachay ro rahe hain",
+      "expect": {
+        "urgency_includes": ["trapped_people"],
+        "vulnerable_includes": ["children"],
+        "missing_mentions": ["location"]
+      },
+      "must_be_absent": ["locations_mentioned"]
+    },
+    {
+      "id": "hall-04-no-count",
+      "note": "HALLUCINATION TEST: people are trapped but no number is given",
+      "text": "hamare mohallay mein log chaton par phansay hue hain, pani barh raha hai, Korangi sector 31",
+      "expect": {
+        "urgency_includes": ["trapped_people", "rising_water"],
+        "locations_nonempty": true
+      },
+      "must_be_absent": ["people_affected"]
+    },
+    {
+      "id": "road-05-partial",
+      "note": "Partial access: a motorcycle passes where a car cannot",
+      "text": "Shah Faisal Colony mein pani hai lekin motorcycle abhi bhi guzar sakti hai, gaari nahi aa sakti. Logon ko khana chahiye.",
+      "expect": {
+        "road_access": "partial",
+        "resources_includes": ["food_water"],
+        "locations_nonempty": true
+      },
+      "must_be_absent": []
+    },
+    {
+      "id": "road-06-open",
+      "note": "Access explicitly fine; only damage reported",
+      "text": "hamare gali mein pani utar gaya hai aur raasta ab khul gaya hai, lekin do gharon ki deewarein gir gayi hain. Baldia Town.",
+      "expect": {
+        "road_access": "open",
+        "urgency_includes": ["structural_damage"],
+        "locations_nonempty": true
+      },
+      "must_be_absent": []
+    },
+    {
+      "id": "med-07-emergency",
+      "note": "Medical emergency compounded by flooding",
+      "text": "meri walida ko dil ka daura para hai aur hospital ka raasta pani se band hai, unki umar 70 saal hai. North Nazimabad block H.",
+      "expect": {
+        "incident_type": "medical_emergency",
+        "urgency_includes": ["medical_need"],
+        "vulnerable_includes": ["elderly"],
+        "resources_includes": ["medical_team"],
+        "locations_nonempty": true
+      },
+      "must_be_absent": []
+    },
+    {
+      "id": "neg-08-not-emergency",
+      "note": "NEGATIVE CONTROL: an ordinary question, not an emergency",
+      "text": "Assalam o alaikum, main ye poochna chahta tha ke aap ka daftar kal khula hoga ya nahi? Shukriya.",
+      "expect": {
+        "incident_type": "other",
+        "urgency_empty": true
+      },
+      "must_be_absent": ["people_affected", "locations_mentioned"]
+    },
+    {
+      "id": "neg-09-weather-chat",
+      "note": "NEGATIVE CONTROL: mentions rain but reports no emergency",
+      "text": "aaj barish bohat achi hui, mausam bohat acha ho gaya hai. Allah ka shukar hai.",
+      "expect": {
+        "incident_type": "other",
+        "urgency_empty": true
+      },
+      "must_be_absent": ["people_affected"]
+    },
+    {
+      "id": "vague-10-minimal",
+      "note": "Extremely short report: almost everything is missing",
+      "text": "madad chahiye",
+      "expect": {
+        "missing_nonempty": true
+      },
+      "must_be_absent": ["people_affected", "locations_mentioned"]
+    }
+  ],
+  "dedup_sets": [
+    {
+      "id": "same-street",
+      "note": "Three reports of one flooded street; all three belong together",
+      "expect_same_cluster": true,
+      "reports": [
+        { "text": "hamari gali mein pani bhar gaya, log chaton par hain, Shah Faisal Colony masjid ke paas", "lat": 24.8607, "lon": 67.0011 },
+        { "text": "Shah Faisal Colony mein poori street doob gayi hai, koi neeche nahi utar sakta", "lat": 24.861, "lon": 67.0015 },
+        { "text": "yahan masjid ke saamne wali gali mein pani bohat hai aur log phansay hue hain", "lat": 24.8604, "lon": 67.0006 }
+      ]
+    },
+    {
+      "id": "lookalike-far",
+      "note": "Near-identical wording, genuinely different households 13km apart. Must NOT cluster.",
+      "expect_same_cluster": false,
+      "reports": [
+        { "text": "hamare ghar mein pani aa gaya hai, hum chat par phansay hue hain", "lat": 24.8607, "lon": 67.0011 },
+        { "text": "hamare ghar mein pani aa gaya hai, hum chat par phansay hue hain", "lat": 24.83, "lon": 67.13 }
+      ]
+    },
+    {
+      "id": "different-emergency-same-place",
+      "note": "Same street, unrelated emergency. Must NOT cluster.",
+      "expect_same_cluster": false,
+      "reports": [
+        { "text": "gali mein pani bhar gaya hai, log phansay hue hain, Shah Faisal Colony", "lat": 24.8607, "lon": 67.0011 },
+        { "text": "Shah Faisal Colony mein mere walid ko insulin chahiye, medical store band hai", "lat": 24.8608, "lon": 67.0012 }
+      ]
+    }
+  ]
+}

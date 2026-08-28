@@ -44,7 +44,16 @@ Urdu speech understanding is the load-bearing assumption, so it was benchmarked 
 | qwen3.5-omni-flash | 12.9% | 7.3s | 6.2-9.9s |
 | qwen3.5-omni-plus | 10.4% | 10.5s | 9.4-12.9s |
 
-The same call also extracts the full structured incident record from raw audio, including Roman Urdu transliteration, and leaves absent fields null instead of hallucinating them. Notably, model output can violate the schema in small ways (enum values as free text), which is why server-side validation is part of the pipeline, not an afterthought. Full methodology and per-clip results: [docs/validation/](docs/validation/).
+Extraction is measured against labelled cases in the register reporters actually use:
+
+| Metric | Result |
+| --- | --- |
+| Field accuracy | 100% (32/32 assertions) |
+| Invention rate | 0% (no fabricated values in fields the report never stated) |
+| Latency p50 / p95 | 1040ms / 1953ms (text reports) |
+| Negative handling | non-emergencies typed `other`, not forced into the schema |
+
+Model output can still violate the schema in small ways (enum values returned as free text), which is why server-side validation is a pipeline stage rather than an afterthought. Full methodology, the deduplication results, and the limitations: [docs/validation/](docs/validation/).
 
 Remaining error is mostly orthographic; the citizen-facing confirmation step ("We understood: two elderly people trapped, road access blocked. Is this correct?") is what makes a ~10% word error rate operationally safe.
 
@@ -55,10 +64,20 @@ Qwen3.5-Omni via Alibaba Cloud Model Studio (OpenAI-compatible API) for speech, 
 ## Reproduce the benchmarks
 
 ```bash
+npm install
+# put DASHSCOPE_API_KEY=sk-... in .env (see .env.example)
+npm run dev
+
+npm run seed        # build the demo scenario through the live API
+npm run evaluate    # extraction + deduplication evaluation suite
+npm run reset       # return the local database to a known state
+```
+
+Speech benchmarks (Python, no API key needed for the demo-endpoint path):
+
+```bash
 pip install requests
 python tools/fetch_fleurs.py eval-data/            # FLEURS ur_pk clips + ground truth
-# put DASHSCOPE_API_KEY=sk-... in .env (see .env.example)
-python tools/verify_production.py models           # list available models
 python tools/verify_production.py wer eval-data/   # WER + latency
 python tools/verify_production.py extract eval-data/fleurs_ur_001.wav
 ```

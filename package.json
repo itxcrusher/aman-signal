@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed": "node tools/seed-demo.mjs --reset",
+    "evaluate": "node tools/evaluate.mjs --with-dedup",
+    "reset": "node tools/reset-data.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
