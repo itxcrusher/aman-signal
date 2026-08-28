@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* Urdu (Nastaliq) for citizen-facing Urdu text, Naskh for dense operator UI,
+   Inter for Latin. Nastaliq needs far more line-height than Latin or it clips. */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@theme {
+  /* Ground: calm slate, not alarm-red. Red is reserved for urgency signals so it
+     retains meaning; ambient red both panics reporters and destroys the signal. */
+  --color-ground: #0b1220;
+  --color-surface: #131c2e;
+  --color-surface-2: #1b2740;
+  --color-line: #2a3550;
+
+  /* Citizen surface is light: readable in direct sunlight on a cheap screen. */
+  --color-day: #f7f9fc;
+  --color-day-surface: #ffffff;
+  --color-day-line: #d5dde8;
+
+  /* Text */
+  --color-ink: #0f172a;
+  --color-ink-soft: #475569;
+  --color-paper: #f8fafc;
+  --color-paper-soft: #94a3b8;
+
+  /* Semantic. Only these three carry urgency meaning. */
+  --color-critical: #dc2626;
+  --color-warn: #d97706;
+  --color-ok: #059669;
+  --color-info: #2563eb;
+
+  /* Brand accent: deep teal, calm and distinct from every semantic colour. */
+  --color-brand: #0d7d76;
+  --color-brand-soft: #0f9d94;
+
+  --font-latin: 'Inter', system-ui, sans-serif;
+  --font-urdu: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', serif;
+  --font-urdu-ui: 'Noto Sans Arabic', 'Noto Nastaliq Urdu', sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--font-latin);
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Urdu text. Nastaliq clips descenders at normal line-height; 2.1 is the floor
+   that renders cleanly at UI sizes. Applied by class, not by :lang alone, so
+   mixed Urdu/Roman-Urdu/English content in one record renders correctly. */
+.urdu {
+  font-family: var(--font-urdu);
+  line-height: 2.1;
+  direction: rtl;
+  text-align: right;
+  font-size: 1.0625em;
+}
+
+.urdu-ui {
+  font-family: var(--font-urdu-ui);
+  line-height: 1.75;
+  direction: rtl;
+  text-align: right;
+}
+
+/* Roman Urdu is Latin script: LTR, Latin font, no Nastaliq metrics. */
+.roman-urdu {
+  font-family: var(--font-latin);
+  direction: ltr;
+}
+
+/* Accessibility floor. The product is used one-handed, in bad light, under stress. */
+button, a, [role="button"], input, select, textarea {
+  min-height: 44px;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -49,3 +49,8 @@ AGENTS.md
 CLAUDE.md
 .claude/
 .qoder/
+
+# Local database and uploaded media
+data/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
