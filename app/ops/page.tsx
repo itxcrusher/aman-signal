@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { LABEL, STATUS_FLOW } from "@/lib/incident";
+
+// Leaflet touches window at import time, so the map never renders on the server.
+const IncidentMap = dynamic(() => import("./IncidentMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="mb-6 h-[440px] animate-pulse rounded-2xl border border-line bg-surface" />
+  ),
+});
 
 type Report = {
   id: string;
@@ -48,6 +57,8 @@ type Incident = {
   summary: string | null;
   created_at: number;
   assigned_to: string | null;
+  lat: number | null;
+  lon: number | null;
   urgency: { indicator: string; sources: number }[];
   vulnerable: string[];
   resources: string[];
@@ -215,6 +226,20 @@ export default function OpsBoard() {
           </p>
         ) : null}
 
+        {incidents.length ? (
+          <IncidentMap
+            incidents={incidents}
+            selectedId={open}
+            onSelect={(id) => {
+              setOpen(id);
+              document.getElementById(`incident-${id}`)?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }}
+          />
+        ) : null}
+
         {pending.length ? (
           <section className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5">
             <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-amber-300">
@@ -285,7 +310,13 @@ export default function OpsBoard() {
             {incidents.map((inc) => {
               const isOpen = open === inc.id;
               return (
-                <li key={inc.id} className="rounded-2xl border border-line bg-surface">
+                <li
+                  key={inc.id}
+                  id={`incident-${inc.id}`}
+                  className={`rounded-2xl border bg-surface transition-colors ${
+                    isOpen ? "border-brand-soft" : "border-line"
+                  }`}
+                >
                   <div className="flex flex-wrap items-start gap-4 p-5">
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex flex-wrap items-center gap-2">

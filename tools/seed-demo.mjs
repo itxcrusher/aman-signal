@@ -6,21 +6,34 @@
  * different ways, plus an unrelated emergency nearby that must NOT be merged into it.
  *
  * USAGE
- *   npm run dev                       # in another terminal
- *   node tools/seed-demo.mjs          # add the scenario
- *   node tools/seed-demo.mjs --reset  # clear all data first
+ *   npm run dev                         # in another terminal
+ *   node tools/seed-demo.mjs            # add the scenario
+ *   node tools/seed-demo.mjs --reset    # clear all data first
+ *   node tools/seed-demo.mjs --reset --resolve
+ *                                       # also act as the operator and link the
+ *                                       # held report, so the board ends showing
+ *                                       # the conflicts rather than the queue
+ *
+ * The third caller contradicts the others about road access, which lowers its
+ * similarity to roughly 0.79 against a 0.82 auto-link threshold. It is therefore
+ * held for review by design rather than by accident: the conservative path refuses
+ * to merge on a weaker match, and a human decides. Left unresolved the board shows
+ * the review queue; resolved, it shows one incident carrying both conflicts.
  */
 import { execFileSync } from "node:child_process";
 
 const BASE = process.env.AMANSIGNAL_BASE ?? "http://localhost:3000";
 const RESET = process.argv.includes("--reset");
+const RESOLVE = process.argv.includes("--resolve");
 
-// One flooded street. Coordinates within the 500m gate of each other.
-const SCENE = { lat: 24.8607, lon: 67.0011 };
-const NEXT_DOOR = { lat: 24.8610, lon: 67.0015 };
-const DOWN_THE_ROAD = { lat: 24.8604, lon: 67.0006 };
-// Far enough away to be a genuinely separate emergency.
-const ELSEWHERE = { lat: 24.83, lon: 67.13 };
+// Real coordinates, because the demo names real Karachi neighbourhoods and anyone
+// who knows the city will read the map. Shah Faisal Colony, three points within the
+// 500m proximity gate of each other.
+const SCENE = { lat: 24.876, lon: 67.16 };
+const NEXT_DOOR = { lat: 24.8763, lon: 67.1604 };
+const DOWN_THE_ROAD = { lat: 24.8757, lon: 67.1596 };
+// Korangi, roughly 6km away: far outside the gate, so a genuinely separate emergency.
+const ELSEWHERE = { lat: 24.829, lon: 67.135 };
 
 const REPORTS = [
   {
@@ -102,6 +115,25 @@ async function main() {
           ? `LINKED into incident ${res.incident_id}`
           : `new incident ${res.incident_id}`;
     console.log(`   extraction ${sub.latency_ms}ms, ${sub.questions?.length ?? 0} question(s) -> ${outcome}`);
+  }
+
+  if (RESOLVE) {
+    const { pending } = await (await fetch(`${BASE}/api/duplicates`, { cache: "no-store" })).json();
+    for (const held of pending) {
+      const best = held.candidates[0];
+      if (!best) continue;
+      await fetch(`${BASE}/api/duplicates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          report_id: held.id,
+          operator: "demo",
+          link_to: best.incident_id,
+        }),
+      });
+      console.log(`
+   operator linked a held report (similarity ${best.similarity}, ${best.distance_m}m away)`);
+    }
   }
 
   const board = await (await fetch(`${BASE}/api/incidents`, { cache: "no-store" })).json();

@@ -10,10 +10,12 @@
     "typecheck": "tsc --noEmit",
     "seed": "node tools/seed-demo.mjs --reset",
     "evaluate": "node tools/evaluate.mjs --with-dedup",
-    "reset": "node tools/reset-data.mjs"
+    "reset": "node tools/reset-data.mjs",
+    "seed:resolved": "node tools/seed-demo.mjs --reset --resolve"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "leaflet": "^1.9.4",
     "next": "16.3.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -22,11 +24,13 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^9.6.0",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"
