@@ -3,20 +3,24 @@
 import { useState } from "react";
 
 /**
- * First run, shown once and never during an emergency.
+ * First run. Location and microphone are requested as requirements, not options.
  *
- * Location and microphone are granted per origin and remembered, so the calm moment
- * to ask is when someone installs the app, not when they are standing in water. A
- * permission request made mid-emergency costs taps the reporter does not have, and a
- * refusal made under stress persists for every later report.
+ * They are granted per origin and remembered, so the moment to ask is at install,
+ * never mid-emergency: a prompt raised while someone is standing in water costs taps
+ * they do not have, and a refusal made under stress persists for every later report.
+ * There is deliberately no skip, because an optional-looking request gets dismissed
+ * and the friction reappears at the worst possible moment.
  *
- * Both permissions are genuinely optional: refusing either leaves typing, which is
- * always available. The screen says so, because a request that reads as a
- * precondition gets refused more often than one that reads as a choice.
+ * A browser denial is a different thing from a skip, and has to be handled. Once
+ * refused, the page cannot prompt again; only the person can, in site settings. An
+ * onboarding with no path after a denial does not produce a compliant user, it
+ * produces someone who cannot report at all, including by typing. So a denial gets
+ * instructions for re-enabling and one subordinate way through, shown only after the
+ * refusal has actually happened.
  */
 export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [granted, setGranted] = useState<{ location?: boolean; mic?: boolean }>({});
+  const [result, setResult] = useState<{ location: boolean; mic: boolean } | null>(null);
 
   async function requestAccess() {
     setBusy(true);
@@ -29,23 +33,23 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
         { enableHighAccuracy: true, timeout: 15000 },
       );
     });
-    setGranted((g) => ({ ...g, location }));
 
     let mic = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Release it straight away: this asks for permission, it does not record.
+      // This asks for permission; it does not record. Release the device at once.
       stream.getTracks().forEach((t) => t.stop());
       mic = true;
     } catch {
       mic = false;
     }
-    setGranted((g) => ({ ...g, mic }));
 
+    setResult({ location, mic });
     setBusy(false);
-    // Refusal is not a dead end. Text always works, so the app opens either way.
-    setTimeout(onDone, 900);
+    if (location && mic) setTimeout(onDone, 700);
   }
+
+  const denied = result !== null && (!result.location || !result.mic);
 
   return (
     <main dir="rtl" className="min-h-screen bg-day text-ink">
@@ -55,36 +59,73 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <p className="urdu-ui mt-2 text-xl font-bold">ہنگامی اطلاع، آپ کی اپنی زبان میں</p>
           <p className="en mt-1 text-sm text-ink-soft">Emergency reporting, in your own language.</p>
 
-          <div className="mt-8 space-y-5">
+          <div className="mt-8 rounded-2xl bg-brand/5 p-5 ring-1 ring-brand">
+            <h2 className="urdu-ui text-lg font-bold">جاری رکھنے کے لیے دو اجازتیں درکار ہیں</h2>
+            <p className="en mt-1 text-sm text-ink-soft">
+              AmanSignal needs two permissions to work. Please allow both to continue.
+            </p>
+          </div>
+
+          <div className="mt-5 space-y-4">
             <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
-              <h2 className="urdu-ui text-lg font-semibold">
-                اپنی جگہ کی اجازت دیں
-                {granted.location === true ? <span className="text-ok"> ✓</span> : null}
-              </h2>
-              <p className="en mt-1 text-sm text-ink-soft">
-                Allow location, so a rescue team can find you without you having to
-                explain where you are.
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="urdu-ui text-lg font-semibold">اپنی جگہ (لوکیشن)</h3>
+                  <p className="en mt-1 text-sm text-ink-soft">
+                    Location, so a rescue team can reach you without you having to
+                    explain where you are.
+                  </p>
+                </div>
+                {result ? (
+                  <span className={`shrink-0 text-xl ${result.location ? "text-ok" : "text-critical"}`}>
+                    {result.location ? "✓" : "✕"}
+                  </span>
+                ) : null}
+              </div>
             </section>
 
             <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
-              <h2 className="urdu-ui text-lg font-semibold">
-                مائیکروفون کی اجازت دیں
-                {granted.mic === true ? <span className="text-ok"> ✓</span> : null}
-              </h2>
-              <p className="en mt-1 text-sm text-ink-soft">
-                Allow the microphone, so you can speak your report instead of typing it.
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="urdu-ui text-lg font-semibold">مائیکروفون</h3>
+                  <p className="en mt-1 text-sm text-ink-soft">
+                    The microphone, so you can speak your report instead of typing it.
+                  </p>
+                </div>
+                {result ? (
+                  <span className={`shrink-0 text-xl ${result.mic ? "text-ok" : "text-critical"}`}>
+                    {result.mic ? "✓" : "✕"}
+                  </span>
+                ) : null}
+              </div>
             </section>
 
             <p className="urdu-ui text-base font-medium">
-              یہ اجازتیں ابھی دے دیں تاکہ ہنگامی وقت میں آپ کا وقت ضائع نہ ہو۔
+              یہ اجازتیں ابھی دے دیں تاکہ ہنگامی وقت میں صرف بولنا کافی ہو۔
             </p>
             <p className="en text-sm text-ink-soft">
               Granting these now means that in an emergency you only have to speak.
-              Both are optional: you can always type your report instead.
             </p>
           </div>
+
+          {denied ? (
+            <div role="alert" className="mt-6 rounded-2xl bg-red-50 p-5 ring-1 ring-critical">
+              <h3 className="urdu-ui text-base font-bold text-critical">
+                اجازت نہیں ملی
+              </h3>
+              <p className="en mt-1 text-sm text-ink">
+                Your browser blocked {!result?.location && !result?.mic
+                  ? "both permissions"
+                  : !result?.location ? "location" : "the microphone"}.
+                We cannot ask again from here. Open the padlock icon beside the web
+                address, allow{" "}
+                {!result?.location && !result?.mic
+                  ? "Location and Microphone"
+                  : !result?.location ? "Location" : "Microphone"}
+                , then tap Try again.
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-8 space-y-3">
@@ -95,21 +136,25 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             className="w-full rounded-2xl bg-brand px-6 py-5 text-xl font-bold text-white disabled:opacity-70"
           >
             <span className="urdu-ui block">
-              {busy ? "اجازت لی جا رہی ہے..." : "اجازت دیں اور شروع کریں"}
+              {busy ? "اجازت لی جا رہی ہے..." : denied ? "دوبارہ کوشش کریں" : "اجازت دیں اور جاری رکھیں"}
             </span>
             <span className="en text-base font-medium opacity-90">
-              {busy ? "Requesting..." : "Allow and continue"}
+              {busy ? "Requesting..." : denied ? "Try again" : "Allow and continue"}
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={onDone}
-            className="w-full rounded-2xl px-6 py-4 text-base text-ink-soft"
-          >
-            <span className="urdu-ui block">ابھی نہیں، صرف لکھ کر بھیجوں گا</span>
-            <span className="en text-sm">Not now, I will type my report</span>
-          </button>
+          {/* Only after a real denial, and deliberately understated: someone who
+              cannot grant permission must still be able to report an emergency. */}
+          {denied ? (
+            <button
+              type="button"
+              onClick={onDone}
+              className="w-full rounded-xl px-6 py-3 text-sm text-ink-soft underline underline-offset-4"
+            >
+              <span className="urdu-ui block">اجازت کے بغیر صرف لکھ کر اطلاع دیں</span>
+              <span className="en text-xs">Report by typing only, without these permissions</span>
+            </button>
+          ) : null}
         </div>
       </div>
     </main>
