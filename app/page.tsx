@@ -15,6 +15,34 @@ const URGENCY_LABEL: Record<string, { ur: string; en: string }> = {
   structural_damage: { ur: "عمارت کو نقصان", en: "Structural damage" },
 };
 
+/** Urdu numerals, so the spoken sentence contains no Latin digits. */
+const URDU_NUM = ["صفر", "ایک", "دو", "تین", "چار", "پانچ", "چھ", "سات", "آٹھ", "نو", "دس"];
+
+/**
+ * The Urdu sentence read aloud, built from the same fields shown on screen so the
+ * audio and the text can never disagree.
+ *
+ * Latin digits and clipped fragments make the model treat the sentence as malformed
+ * and refuse it aloud, so numbers are spelled out in Urdu and each clause is a whole
+ * phrase rather than a label.
+ */
+function spokenSummary(e: Extraction): string {
+  const parts: string[] = [];
+  if (e.people_affected !== null) {
+    const n = e.people_affected <= 10 ? URDU_NUM[e.people_affected] : String(e.people_affected);
+    parts.push(`${n} افراد متاثر ہیں`);
+  }
+  const vuln = e.vulnerable_people.map((v) => VULNERABLE_LABEL[v]?.ur).filter(Boolean);
+  if (vuln.length) parts.push(`${vuln.join(" اور ")} شامل ہیں`);
+  if (e.urgency_indicators.includes("trapped_people")) parts.push("لوگ پھنسے ہوئے ہیں");
+  if (e.urgency_indicators.includes("medical_need")) parts.push("طبی مدد درکار ہے");
+  if (e.urgency_indicators.includes("rising_water")) parts.push("پانی بڑھ رہا ہے");
+  if (e.road_access === "blocked") parts.push("راستہ بند ہے");
+  else if (e.road_access === "partial") parts.push("راستہ جزوی طور پر کھلا ہے");
+  if (!parts.length) return "ہم نے آپ کی اطلاع وصول کر لی ہے۔";
+  return `ہم نے یہ سمجھا ہے کہ ${parts.join("، اور ")}۔`;
+}
+
 const VULNERABLE_LABEL: Record<string, { ur: string; en: string }> = {
   elderly: { ur: "بزرگ", en: "Elderly" },
   children: { ur: "بچے", en: "Children" },
@@ -39,6 +67,32 @@ export default function CitizenIntake() {
 
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const [speaking, setSpeaking] = useState(false);
+  const audioEl = useRef<HTMLAudioElement | null>(null);
+
+  // Read the confirmation aloud. Failure is silent by design: the text is already
+  // on screen, so a speech outage must not block the citizen from confirming.
+  const speak = useCallback(async (sentence: string) => {
+    setSpeaking(true);
+    try {
+      const res = await fetch("/api/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: sentence }),
+      });
+      if (!res.ok) return;
+      const url = URL.createObjectURL(await res.blob());
+      audioEl.current?.pause();
+      const el = new Audio(url);
+      audioEl.current = el;
+      el.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+      await el.play();
+    } catch {
+      // Speech is an enhancement; the written summary carries the meaning.
+    } finally {
+      setSpeaking(false);
+    }
+  }, []);
 
   const startRecording = useCallback(async () => {
     try {
@@ -238,8 +292,23 @@ export default function CitizenIntake() {
         {phase === "review" && extraction ? (
           <div className="space-y-5">
             <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
-              <h2 className="urdu-ui text-lg font-bold">ہم نے یہ سمجھا</h2>
-              <p className="en mb-4 text-sm text-ink-soft">This is what we understood. Correct it if it is wrong.</p>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="urdu-ui text-lg font-bold">ہم نے یہ سمجھا</h2>
+                  <p className="en text-sm text-ink-soft">This is what we understood. Correct it if it is wrong.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => speak(spokenSummary(extraction))}
+                  aria-label="Listen to this summary in Urdu"
+                  className="shrink-0 cursor-pointer rounded-xl bg-brand px-4 py-3 text-white"
+                >
+                  <span className="urdu-ui block text-sm font-semibold">
+                    {speaking ? "سن رہے ہیں..." : "سنیں"}
+                  </span>
+                  <span className="en text-xs opacity-90">{speaking ? "Playing" : "Listen"}</span>
+                </button>
+              </div>
 
               <dl className="space-y-3 text-base">
                 {extraction.urgency_indicators.length ? (

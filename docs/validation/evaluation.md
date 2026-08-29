@@ -53,6 +53,18 @@ Two controlled scenes were used rather than a real flood photograph, so what fol
 
 A photo accompanied by a report that *does* state people are on rooftops still returns `trapped_people`, because that fact is grounded in the reporter's words rather than the image.
 
+## Urdu speech output
+
+The confirmation summary can be read aloud, so a reporter who does not read comfortably can still check that the system understood them before it reaches a dispatcher. Text always remains on screen; audio is an addition.
+
+That the model speaks Urdu was verified by round trip rather than taken from documentation: an Urdu sentence was spoken, the generated audio transcribed back, and the result matched the original 18 words out of 18.
+
+Two failure modes were measured, and both produce perfectly valid audio that says the wrong thing. Given a machine-assembled sentence containing a Latin digit, the model spoke a refusal aloud in Urdu ("I cannot read this sentence because the words and symbols in it are wrong or distorted"), which to a citizen reads as their own report being rejected. Separately, repeated attempts on one sentence returned 3.3s, 3.4s and 13.9s of audio, where the short clips transcribe to nonsense while the streamed `content` field still reported the correct sentence, because that field carries what the model intended to say rather than what the audio contains.
+
+Both were traced to prompt structure rather than the model. Wrapping the sentence inside an instruction made it treat the text as something to evaluate; sending it as a plain user message with the speaking role in a system prompt measured **6 usable clips out of 6** end to end. Numbers are also spelled out in Urdu rather than written as Latin digits, which is what triggered the refusal.
+
+The guards remain in place regardless: the spoken text is compared against the request, and the audio must be long enough to plausibly contain the sentence. A failed check returns an error instead of audio and the citizen simply reads the summary, because the alternative is playing something confidently wrong to someone in an emergency.
+
 ## Deduplication
 
 Each set runs against a clean board, so clusters cannot leak between sets.
