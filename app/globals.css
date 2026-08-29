@@ -81,7 +81,13 @@ body {
    is happening"), so every English string needs this, not just alignment. */
 .en {
   direction: ltr;
-  text-align: right;
+  /* Alignment follows the page, not the element. This used to be forced to the
+     right, which was correct when English sat inside an RTL bilingual layout and
+     had to line up with the Urdu beside it. Now that a page is in one language
+     throughout, forcing it produced right-aligned English on an LTR screen. The
+     `direction` declaration stays and is the load-bearing half: without it the
+     bidi algorithm moves trailing punctuation to the visual start. */
+  text-align: start;
   font-family: var(--font-latin);
 }
 

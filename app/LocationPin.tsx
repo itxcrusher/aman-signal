@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, Marker, Circle } from "leaflet";
+import type { Strings } from "@/lib/i18n";
 
 /**
  * Place the emergency on a street-level map, by hand.
@@ -22,12 +23,14 @@ export default function LocationPin({
   accuracy,
   onChange,
   onUseGps,
+  t,
 }: {
   lat: number | null;
   lon: number | null;
   accuracy: number | null;
   onChange: (lat: number, lon: number) => void;
   onUseGps?: () => Promise<boolean>;
+  t: Strings;
 }) {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<LeafletMap | null>(null);
@@ -137,12 +140,8 @@ export default function LocationPin({
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <div>
-          <h3 className="urdu-ui text-base font-semibold">جگہ کی تصدیق کریں</h3>
-          <p className="en text-sm text-ink-soft">
-            {hasFix
-              ? "Drag the pin to your exact spot. The phone's location is often off by half a street."
-              : "Tap the map to place your exact location."}
-          </p>
+          <h3 className={`${t.face} text-base font-semibold`}>{t.confirmPlace}</h3>
+          <p className={`${t.face} text-sm text-ink-soft`}>{hasFix ? t.dragPin : t.tapMap}</p>
         </div>
       </div>
 
@@ -153,16 +152,13 @@ export default function LocationPin({
       />
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="en text-xs text-ink-soft">
+        <p className={`${t.face} text-xs text-ink-soft`}>
           {moved ? (
-            <span className="font-medium text-ok">Pin placed by you</span>
+            <span className="font-medium text-ok">{t.pinPlaced}</span>
           ) : hasFix ? (
-            <>
-              From your phone
-              {accuracy !== null ? `, accurate to about ${Math.round(accuracy)}m` : ""}
-            </>
+            t.fromPhone(accuracy !== null ? Math.round(accuracy) : null)
           ) : (
-            <span className="font-medium text-critical">No location set yet</span>
+            <span className="font-medium text-critical">{t.noLocationYet}</span>
           )}
         </p>
 
@@ -174,9 +170,9 @@ export default function LocationPin({
             type="button"
             onClick={grantLocation}
             disabled={locating}
-            className="rounded-xl bg-brand/10 px-3 py-2 text-sm font-medium text-brand ring-1 ring-brand disabled:opacity-60"
+            className={`${t.face} rounded-xl bg-brand/10 px-3 py-2 text-sm font-medium text-brand ring-1 ring-brand disabled:opacity-60`}
           >
-            {locating ? "Locating..." : "Use my location"}
+            {locating ? t.locating : t.useMyLocation}
           </button>
         ) : null}
       </div>

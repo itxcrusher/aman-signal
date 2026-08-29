@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
         // shown honestly as "not yet reviewed" rather than dressed up.
         incident_status: r.incident_status,
         assigned_to: r.incident_assigned_to,
+        safe: r.citizen_safe === 1,
       };
     }),
   });

@@ -5,19 +5,13 @@ import type { Extraction } from "@/lib/schema";
 import Onboarding from "./Onboarding";
 import LocationPin from "./LocationPin";
 import MyReports from "./MyReports";
-import { loadProfile, type Profile } from "@/lib/profile";
+import { loadProfile, saveProfile, type Profile } from "@/lib/profile";
+import LanguageToggle from "./LanguageToggle";
+import ReviewCard from "./ReviewCard";
+import { stringsFor, type Lang } from "@/lib/i18n";
 
 type Question = { field: string; ur: string; en: string };
 type Phase = "compose" | "sending" | "review" | "done" | "error";
-
-const URGENCY_LABEL: Record<string, { ur: string; en: string }> = {
-  trapped_people: { ur: "لوگ پھنسے ہوئے ہیں", en: "People trapped" },
-  medical_need: { ur: "طبی مدد درکار", en: "Medical help needed" },
-  rising_water: { ur: "پانی بڑھ رہا ہے", en: "Water rising" },
-  blocked_access: { ur: "راستہ بند", en: "Access blocked" },
-  no_safe_route: { ur: "محفوظ راستہ نہیں", en: "No safe route" },
-  structural_damage: { ur: "عمارت کو نقصان", en: "Structural damage" },
-};
 
 /** Urdu numerals, so the spoken sentence contains no Latin digits. */
 const URDU_NUM = ["صفر", "ایک", "دو", "تین", "چار", "پانچ", "چھ", "سات", "آٹھ", "نو", "دس"];
@@ -309,6 +303,22 @@ export default function CitizenIntake() {
     setPhase("done");
   }
 
+  /** Clear everything from the last report so a new one starts empty. */
+  function resetForNewReport() {
+    setPhase("compose");
+    setText("");
+    setAudio(null);
+    setImage(null);
+    setExtraction(null);
+    setQuestions([]);
+    setAnswers({});
+    setReportId(null);
+    setPin(null);
+    setError(null);
+    setSilentMic(false);
+    setTab("report");
+  }
+
   const hasContent = text.trim() !== "" || audio !== null || image !== null;
 
   if (profile === null) {
@@ -327,14 +337,72 @@ export default function CitizenIntake() {
   }
 
   const settled = phase === "compose" || phase === "error" || phase === "done";
+  const t = stringsFor(profile.lang);
+
+  function setLang(lang: Lang) {
+    const next = { ...profile!, lang };
+    setProfile(next);
+    saveProfile(next);
+  }
+
+  /**
+   * The three ways to add evidence, side by side under the text box.
+   *
+   * They were previously full-width stacked rows, which pushed the send button off
+   * a phone screen and made three optional attachments look like three required
+   * steps. As icons they read as what they are: things you may add.
+   */
+  const attachments = [
+    {
+      key: "mic",
+      label: t.recordVoice,
+      active: recording,
+      done: audio !== null && !recording,
+      onClick: recording ? stopRecording : startRecording,
+      icon: (
+        <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12h-2Z" />
+      ),
+    },
+    {
+      key: "photo",
+      label: t.addPhoto,
+      active: false,
+      done: image !== null,
+      icon: (
+        <path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9Zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+      ),
+    },
+    {
+      key: "location",
+      label: t.shareLocation,
+      active: locating,
+      done: coords !== null,
+      onClick: getLocation,
+      icon: (
+        <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+      ),
+    },
+  ];
+
+  const locationStatus = coords
+    ? coords.accuracy > 0
+      ? t.locationAttachedTo(coords.accuracy)
+      : t.locationAttached
+    : locating
+      ? t.findingYou
+      : locationDenied
+        ? t.locationUnavailable
+        : null;
 
   return (
-    <main dir="rtl" className="min-h-screen bg-day text-ink">
+    <main dir={t.dir} className="min-h-screen bg-day text-ink">
       <div className="mx-auto max-w-xl px-5 py-6">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-brand">AmanSignal</h1>
-          <p className="urdu-ui mt-1 text-lg font-semibold">ہنگامی اطلاع دیں</p>
-          <p className="en mt-1 text-sm text-ink-soft">Report an emergency</p>
+        <header className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-brand">AmanSignal</h1>
+            <p className={`${t.face} mt-1 text-lg font-semibold`}>{t.headerAction}</p>
+          </div>
+          <LanguageToggle lang={profile.lang} onChange={setLang} />
         </header>
 
         {/* Reporting and following up are the two things a person does here, and
@@ -343,38 +411,35 @@ export default function CitizenIntake() {
             not confirmed yet. */}
         {settled ? (
           <nav className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-day-surface p-1 ring-1 ring-day-line">
-            <button
-              type="button"
-              onClick={() => setTab("report")}
-              aria-current={tab === "report"}
-              className={`rounded-xl px-4 py-3 text-center ${tab === "report" ? "bg-brand text-white" : "text-ink-soft"}`}
-            >
-              <span className="urdu-ui block text-base font-semibold">اطلاع دیں</span>
-              <span className="en text-xs opacity-90">Report</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("mine")}
-              aria-current={tab === "mine"}
-              className={`rounded-xl px-4 py-3 text-center ${tab === "mine" ? "bg-brand text-white" : "text-ink-soft"}`}
-            >
-              <span className="urdu-ui block text-base font-semibold">میری اطلاعات</span>
-              <span className="en text-xs opacity-90">My reports</span>
-            </button>
+            {([
+              ["report", t.tabReport],
+              ["mine", t.tabMine],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                aria-current={tab === key}
+                className={`${t.face} rounded-xl px-4 py-3 text-center text-base font-semibold ${
+                  tab === key ? "bg-brand text-white" : "text-ink-soft"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </nav>
         ) : null}
 
-        {settled && tab === "mine" ? <MyReports reporterId={profile.reporterId} /> : null}
+        {settled && tab === "mine" ? (
+          <MyReports reporterId={profile.reporterId} lang={profile.lang} />
+        ) : null}
 
         {tab === "report" && (phase === "compose" || phase === "error") ? (
           <div className="space-y-5">
             <section className="rounded-2xl bg-day-surface p-5 shadow-sm ring-1 ring-day-line">
-              <label htmlFor="report" className="urdu-ui block text-base font-semibold">
-                کیا ہوا ہے؟ اردو، رومن اردو یا انگریزی میں لکھیں۔
+              <label htmlFor="report" className={`${t.face} block text-base font-semibold`}>
+                {t.whatHappened}
               </label>
-              <p className="en mb-3 mt-1 text-sm text-ink-soft">
-                Describe what is happening, in any language.
-              </p>
               <textarea
                 id="report"
                 value={text}
@@ -384,88 +449,76 @@ export default function CitizenIntake() {
                 }}
                 rows={5}
                 dir="auto"
-                placeholder="مثال: ہمارے گھر میں پانی آ گیا ہے..."
-                className="w-full rounded-xl border border-day-line p-4 text-lg leading-relaxed outline-none focus:border-brand"
+                placeholder={t.composePlaceholder}
+                className="mt-3 w-full rounded-xl border border-day-line p-4 text-lg leading-relaxed outline-none focus:border-brand"
               />
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {attachments.map((a) =>
+                  a.key === "photo" ? (
+                    <label
+                      key={a.key}
+                      className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl px-2 py-3 ring-1 transition-colors ${
+                        a.done ? "bg-brand/10 text-brand ring-brand" : "bg-day text-ink-soft ring-day-line"
+                      }`}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden className="h-6 w-6 fill-current">
+                        {a.icon}
+                      </svg>
+                      <span className={`${t.face} text-center text-xs font-medium leading-tight`}>
+                        {a.label}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        onChange={(e) => {
+                          setImage(e.target.files?.[0] ?? null);
+                          startComposing();
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    <button
+                      key={a.key}
+                      type="button"
+                      onClick={a.onClick}
+                      aria-pressed={a.active}
+                      className={`flex flex-col items-center gap-1 rounded-xl px-2 py-3 ring-1 transition-colors ${
+                        a.active
+                          ? "bg-critical text-white ring-critical"
+                          : a.done
+                            ? "bg-brand/10 text-brand ring-brand"
+                            : "bg-day text-ink-soft ring-day-line"
+                      }`}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden className="h-6 w-6 fill-current">
+                        {a.icon}
+                      </svg>
+                      <span className={`${t.face} text-center text-xs font-medium leading-tight`}>
+                        {a.key === "mic" && recording ? t.recordingTapToStop : a.label}
+                      </span>
+                    </button>
+                  ),
+                )}
+              </div>
+
+              <div className={`${t.face} mt-2 space-y-1 text-sm`}>
+                {audio && !recording ? <p className="text-ok">{t.voiceAttached}</p> : null}
+                {image ? <p className="text-ok">{t.photoAttached}</p> : null}
+                {locationStatus ? (
+                  <p className={coords ? "text-ok" : "text-ink-soft"}>{locationStatus}</p>
+                ) : null}
+              </div>
             </section>
 
-            <section className="grid grid-cols-1 gap-3">
-              <button
-                type="button"
-                onClick={recording ? stopRecording : startRecording}
-                className={`flex items-center justify-between rounded-2xl px-5 py-4 text-left text-lg font-semibold ring-1 transition-colors ${
-                  recording
-                    ? "bg-critical text-white ring-critical"
-                    : "bg-day-surface ring-day-line hover:bg-slate-50"
-                }`}
-              >
-                <span>
-                  <span className="urdu-ui block text-base">
-                    {recording ? "ریکارڈنگ جاری ہے، روکنے کے لیے دبائیں" : "آواز میں بتائیں"}
-                  </span>
-                  <span className={`en text-sm ${recording ? "text-white/80" : "text-ink-soft"}`}>
-                    {recording ? "Recording, tap to stop" : "Record a voice note"}
-                  </span>
-                </span>
-                <span aria-hidden className="text-2xl">{recording ? "■" : "●"}</span>
-              </button>
-              {audio && !recording ? (
-                <p className="en text-sm text-ok">Voice note attached.</p>
-              ) : null}
-              {silentMic && !recording ? (
-                <div role="alert" className="rounded-xl bg-red-50 p-4 ring-1 ring-critical">
-                  <p className="urdu-ui text-base font-semibold text-critical">
-                    آپ کی آواز سنائی نہیں دی
-                  </p>
-                  <p className="en mt-1 text-sm text-ink">
-                    We recorded nothing at all, so your microphone is muted or the
-                    wrong one is selected. Check it and record again, or type your
-                    report instead. We will not send an empty recording.
-                  </p>
-                </div>
-              ) : null}
-
-              <label className="flex cursor-pointer items-center justify-between rounded-2xl bg-day-surface px-5 py-4 text-lg font-semibold ring-1 ring-day-line hover:bg-slate-50">
-                <span>
-                  <span className="urdu-ui block text-base">تصویر لگائیں</span>
-                  <span className="en text-sm text-ink-soft">Add a photo</span>
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  onChange={(e) => {
-                    setImage(e.target.files?.[0] ?? null);
-                    startComposing();
-                  }}
-                />
-                <span aria-hidden className="text-2xl">+</span>
-              </label>
-              {image ? <p className="en text-sm text-ok">Photo attached: {image.name}</p> : null}
-
-              <button
-                type="button"
-                onClick={getLocation}
-                className="flex items-center justify-between rounded-2xl bg-day-surface px-5 py-4 text-lg font-semibold ring-1 ring-day-line hover:bg-slate-50"
-              >
-                <span>
-                  <span className="urdu-ui block text-base">اپنی جگہ بھیجیں</span>
-                  <span className="en text-sm text-ink-soft">
-                    {coords
-                      ? coords.accuracy > 0
-                        ? `Location attached (accurate to about ${coords.accuracy}m)`
-                        : "Location attached"
-                      : locating
-                        ? "Finding you..."
-                        : locationDenied
-                          ? "Location unavailable, tap to try again"
-                          : "Share your location"}
-                  </span>
-                </span>
-                <span aria-hidden className="text-2xl">{coords ? "✓" : "◎"}</span>
-              </button>
-            </section>
+            {silentMic && !recording ? (
+              <div role="alert" className="rounded-xl bg-red-50 p-4 ring-1 ring-critical">
+                <p className={`${t.face} text-base font-semibold text-critical`}>{t.silentMicTitle}</p>
+                <p className={`${t.face} mt-1 text-sm text-ink`}>{t.silentMicBody}</p>
+              </div>
+            ) : null}
 
             {error ? (
               <p role="alert" className="rounded-xl bg-red-50 p-4 text-critical">{error}</p>
@@ -475,92 +528,31 @@ export default function CitizenIntake() {
               type="button"
               disabled={!hasContent}
               onClick={submit}
-              className="w-full rounded-2xl bg-brand px-6 py-5 text-xl font-bold text-white disabled:bg-slate-300"
+              className={`${t.face} w-full rounded-2xl bg-brand px-6 py-5 text-xl font-bold text-white disabled:bg-slate-300`}
             >
-              <span className="urdu-ui block">اطلاع بھیجیں</span>
-              <span className="en text-base font-medium opacity-90">Send report</span>
+              {t.sendReport}
             </button>
           </div>
         ) : null}
 
         {phase === "sending" ? (
           <div className="rounded-2xl bg-day-surface p-8 text-center ring-1 ring-day-line">
-            <p className="urdu text-lg font-semibold">آپ کی اطلاع پڑھی جا رہی ہے...</p>
-            <p className="en mt-2 text-sm text-ink-soft">Understanding your report. This takes a few seconds.</p>
+            <p className={`${t.face} text-lg font-semibold`}>{t.understanding}</p>
+            <p className={`${t.face} mt-2 text-sm text-ink-soft`}>{t.understandingHint}</p>
           </div>
         ) : null}
 
         {phase === "review" && extraction ? (
           <div className="space-y-5">
-            <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="urdu-ui text-lg font-bold">ہم نے یہ سمجھا</h2>
-                  <p className="en text-sm text-ink-soft">This is what we understood. Correct it if it is wrong.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => speak(spokenSummary(extraction))}
-                  aria-label="Listen to this summary in Urdu"
-                  className="shrink-0 cursor-pointer rounded-xl bg-brand px-4 py-3 text-white"
-                >
-                  <span className="urdu-ui block text-sm font-semibold">
-                    {speaking ? "سن رہے ہیں..." : "سنیں"}
-                  </span>
-                  <span className="en text-xs opacity-90">{speaking ? "Playing" : "Listen"}</span>
-                </button>
-              </div>
-
-              <dl className="space-y-3 text-base">
-                {extraction.urgency_indicators.length ? (
-                  <div>
-                    <dt className="en text-sm text-ink-soft">Situation</dt>
-                    <dd className="flex flex-wrap gap-2 pt-1">
-                      {extraction.urgency_indicators.map((u) => (
-                        <span key={u} className="rounded-lg bg-amber-50 px-3 py-1 text-sm font-medium text-amber-900 ring-1 ring-amber-200">
-                          {URGENCY_LABEL[u]?.en ?? u}
-                        </span>
-                      ))}
-                    </dd>
-                  </div>
-                ) : null}
-
-                {extraction.people_affected !== null ? (
-                  <div>
-                    <dt className="en text-sm text-ink-soft">People affected</dt>
-                    <dd className="text-lg font-semibold">{extraction.people_affected}</dd>
-                  </div>
-                ) : null}
-
-                {extraction.vulnerable_people.length ? (
-                  <div>
-                    <dt className="en text-sm text-ink-soft">Vulnerable people present</dt>
-                    <dd className="flex flex-wrap gap-2 pt-1">
-                      {extraction.vulnerable_people.map((v) => (
-                        <span key={v} className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-medium">
-                          {VULNERABLE_LABEL[v]?.en ?? v}
-                        </span>
-                      ))}
-                    </dd>
-                  </div>
-                ) : null}
-
-                {/* Whichever transcript came back. A spoken report can return only
-                    the Roman form, and showing nothing leaves the reporter unable to
-                    check that they were heard correctly, which is the entire purpose
-                    of this screen. */}
-                {extraction.transcript_urdu || extraction.transcript_roman_urdu ? (
-                  <div>
-                    <dt className="en text-sm text-ink-soft">What we heard</dt>
-                    {extraction.transcript_urdu ? (
-                      <dd className="urdu text-base">{extraction.transcript_urdu}</dd>
-                    ) : (
-                      <dd className="roman-urdu text-base">{extraction.transcript_roman_urdu}</dd>
-                    )}
-                  </div>
-                ) : null}
-              </dl>
-            </section>
+            <ReviewCard
+              extraction={extraction}
+              onChange={setExtraction}
+              lang={profile.lang}
+              t={t}
+              onSpeak={speak}
+              speaking={speaking}
+              spoken={spokenSummary(extraction)}
+            />
 
             <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
               <LocationPin
@@ -569,27 +561,25 @@ export default function CitizenIntake() {
                 accuracy={pin ? null : (coords?.accuracy ?? null)}
                 onChange={(lat, lon) => setPin({ lat, lon })}
                 onUseGps={requestLocation}
+                t={t}
               />
             </section>
 
             {questions.length ? (
               <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-brand">
-                <h2 className="urdu-ui text-lg font-bold">ایک بات اور</h2>
-                <p className="en mb-4 text-sm text-ink-soft">
-                  This helps the rescue team reach you.
-                </p>
+                <h2 className={`${t.face} text-lg font-bold`}>{t.oneMoreThing}</h2>
+                <p className={`${t.face} mb-4 text-sm text-ink-soft`}>{t.helpsTeam}</p>
                 {questions.map((q) => (
                   <div key={q.field} className="mb-4">
-                    <label htmlFor={`q-${q.field}`} className="urdu-ui block text-base font-semibold">
-                      {q.ur}
+                    <label htmlFor={`q-${q.field}`} className={`${t.face} block text-base font-semibold`}>
+                      {profile!.lang === "ur" ? q.ur : q.en}
                     </label>
-                    <p className="en mb-2 text-sm text-ink-soft">{q.en}</p>
                     <input
                       id={`q-${q.field}`}
                       dir="auto"
                       value={answers[q.field] ?? ""}
                       onChange={(e) => setAnswers((a) => ({ ...a, [q.field]: e.target.value }))}
-                      className="w-full rounded-xl border border-day-line p-3 text-lg outline-none focus:border-brand"
+                      className="mt-2 w-full rounded-xl border border-day-line p-3 text-lg outline-none focus:border-brand"
                     />
                   </div>
                 ))}
@@ -599,28 +589,36 @@ export default function CitizenIntake() {
             <button
               type="button"
               onClick={confirmReport}
-              className="w-full rounded-2xl bg-brand px-6 py-5 text-xl font-bold text-white"
+              className={`${t.face} w-full rounded-2xl bg-brand px-6 py-5 text-xl font-bold text-white`}
             >
-              <span className="urdu-ui block">تصدیق کریں اور بھیجیں</span>
-              <span className="en text-base font-medium opacity-90">Confirm and send</span>
+              {t.confirmAndSend}
             </button>
           </div>
         ) : null}
 
         {tab === "report" && phase === "done" ? (
           <div className="rounded-2xl bg-day-surface p-8 text-center ring-1 ring-ok">
-            <p className="urdu text-xl font-bold text-ok">آپ کی اطلاع موصول ہو گئی ہے</p>
-            <p className="en mt-2 text-ink-soft">
-              Your report has been received and sent to the relief team.
-            </p>
-            <button
-              type="button"
-              onClick={() => setTab("mine")}
-              className="mt-5 rounded-xl bg-brand/10 px-5 py-3 text-brand ring-1 ring-brand"
-            >
-              <span className="urdu-ui block text-base font-semibold">کیا ہوا، دیکھیں</span>
-              <span className="en text-xs">Follow what happens next</span>
-            </button>
+            <p className={`${t.face} text-xl font-bold text-ok`}>{t.received}</p>
+            <p className={`${t.face} mt-2 text-ink-soft`}>{t.receivedBody}</p>
+            {/* Two things follow a report: watching this one, or sending another
+                because something else has happened. Neither is the obvious default,
+                so both are offered rather than guessed at. */}
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setTab("mine")}
+                className={`${t.face} rounded-xl bg-brand px-5 py-4 text-base font-semibold text-white`}
+              >
+                {t.viewMyReport}
+              </button>
+              <button
+                type="button"
+                onClick={resetForNewReport}
+                className={`${t.face} rounded-xl bg-day px-5 py-4 text-base font-semibold text-brand ring-1 ring-brand`}
+              >
+                {t.sendAnother}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

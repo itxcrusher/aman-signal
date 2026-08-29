@@ -13,10 +13,14 @@
  * is never used to authorise anything.
  */
 
+import type { Lang } from "./i18n";
+
 const KEY = "amansignal.profile";
 
 export type Profile = {
   reporterId: string;
+  /** Chosen on the first screen, switchable from the header at any time. */
+  lang: Lang;
   name: string;
   phone: string;
   /** Whether the person has been through first-run setup at all. */
@@ -36,6 +40,7 @@ function newId(): string {
 
 const EMPTY: Profile = {
   reporterId: "",
+  lang: "ur",
   name: "",
   phone: "",
   onboarded: false,
@@ -56,6 +61,7 @@ export function loadProfile(): Profile {
       if (typeof p.reporterId === "string" && p.reporterId.length >= 8) {
         return {
           reporterId: p.reporterId,
+          lang: p.lang === "en" ? "en" : "ur",
           name: typeof p.name === "string" ? p.name : "",
           phone: typeof p.phone === "string" ? p.phone : "",
           onboarded: p.onboarded === true,
