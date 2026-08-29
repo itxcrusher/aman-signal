@@ -11,7 +11,8 @@
     "seed": "node tools/seed-demo.mjs --reset",
     "evaluate": "node tools/evaluate.mjs --with-dedup",
     "reset": "node tools/reset-data.mjs",
-    "seed:resolved": "node tools/seed-demo.mjs --reset --resolve"
+    "seed:resolved": "node tools/seed-demo.mjs --reset --resolve",
+    "e2e": "node tools/e2e.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
