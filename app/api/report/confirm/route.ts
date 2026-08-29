@@ -6,6 +6,25 @@ import { ExtractionSchema } from "@/lib/schema";
 export const runtime = "nodejs";
 
 /**
+ * A clarification answer resolves the gap that prompted the question, so that gap
+ * must stop being reported as missing. Without this the board asks a citizen where
+ * they are, receives "Masjid", and still tells the dispatcher the location is
+ * unknown, which makes the whole clarification step pointless.
+ */
+const ANSWERED_GAP: Record<string, RegExp> = {
+  location: /locat|address|landmark|area|where|جگہ|پتہ|مقام|نشان/i,
+  people_affected: /people|person|affected|how many|trapped count|افراد|تعداد|لوگ/i,
+};
+
+function pruneMissing(missing: unknown, field: string): string[] {
+  if (!Array.isArray(missing)) return [];
+  const pattern = ANSWERED_GAP[field];
+  if (!pattern) return missing as string[];
+  return (missing as string[]).filter((m) => typeof m === "string" && !pattern.test(m));
+}
+
+
+/**
  * Citizen confirmation. Until this runs, a report is a draft and is not visible to
  * dispatchers. Corrections the citizen makes are recorded as clarification answers,
  * so the operator can see what the AI got wrong and what the human fixed.
@@ -58,10 +77,17 @@ export async function POST(req: NextRequest) {
         ...extraction.locations_mentioned,
         a.answer.trim(),
       ];
+      extraction.missing_information = pruneMissing(extraction.missing_information, "location");
     }
     if (a.field === "people_affected" && a.answer?.trim()) {
       const n = parseInt(a.answer.replace(/\D/g, ""), 10);
-      if (Number.isFinite(n)) extraction.people_affected = n;
+      if (Number.isFinite(n)) {
+        extraction.people_affected = n;
+        extraction.missing_information = pruneMissing(
+          extraction.missing_information,
+          "people_affected",
+        );
+      }
     }
   }
 

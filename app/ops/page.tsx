@@ -363,8 +363,12 @@ export default function OpsBoard() {
                       <dl className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-paper-soft">
                         <div>
                           <dt className="inline">Location: </dt>
+                          {/* A dispatcher acts on the place, not on the word "gps". Landmarks
+                              a citizen gave, including ones supplied when we asked, are shown
+                              here rather than left buried in the evidence panel. */}
                           <dd className={`inline font-medium ${inc.quality.locationQuality === "missing" ? "text-red-300" : "text-paper"}`}>
                             {inc.quality.locationQuality}
+                            {inc.locations.length ? ` · ${inc.locations.join(", ")}` : ""}
                           </dd>
                         </div>
                         <div>
@@ -385,7 +389,11 @@ export default function OpsBoard() {
                           <div>
                             <dt className="inline">People affected: </dt>
                             <dd className="inline font-medium text-paper">
-                              {inc.people_claims.map((p) => `${p.value} (${p.sources})`).join(" / ")}
+                              {inc.people_claims.length === 1
+                                ? inc.people_claims[0].value
+                                : inc.people_claims
+                                    .map((p) => `${p.value} (${p.sources} report${p.sources === 1 ? "" : "s"})`)
+                                    .join(" / ")}
                             </dd>
                           </div>
                         ) : null}
