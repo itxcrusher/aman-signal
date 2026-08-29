@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { LABEL, STATUS_FLOW } from "@/lib/incident";
 
@@ -119,6 +119,22 @@ export default function OpsBoard() {
   const [err, setErr] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [reassigning, setReassigning] = useState<string | null>(null);
+  const operatorRef = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * Refusing an unattributed action is correct, but the refusal used to appear in a
+   * banner at the top of the page, six hundred pixels above the button that was
+   * pressed. Anyone working the review queue saw nothing happen at all and read the
+   * control as broken. The name field is now brought to them and focused, so the
+   * requirement is visible at the moment it blocks them.
+   */
+  function demandOperator(message: string): boolean {
+    if (operator.trim()) return true;
+    setErr(message);
+    operatorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    operatorRef.current?.focus();
+    return false;
+  }
   const [team, setTeam] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<PendingDup[]>([]);
 
@@ -159,10 +175,7 @@ export default function OpsBoard() {
    * on the board is worse than none: it sends a dispatcher chasing the wrong radio.
    */
   async function reassign(inc: Incident) {
-    if (!operator.trim()) {
-      setErr("Enter your name first: every assignment is recorded against a person.");
-      return;
-    }
+    if (!demandOperator("Enter your name first: every assignment is recorded against a person.")) return;
     const next = (team[inc.id] ?? "").trim();
     if (!next) {
       setReassigning(inc.id);
@@ -186,10 +199,7 @@ export default function OpsBoard() {
   }
 
   async function advance(inc: Incident, status: string) {
-    if (!operator.trim()) {
-      setErr("Enter your name first: every status change is recorded against a person.");
-      return;
-    }
+    if (!demandOperator("Enter your name first: every status change is recorded against a person.")) return;
     // Assigning a team needs a team name, collected inline rather than in a native
     // dialog: it must be styleable, testable, and must not block the tab.
     if (status === "assigned" && !(team[inc.id] ?? "").trim()) {
@@ -218,10 +228,7 @@ export default function OpsBoard() {
   }
 
   async function resolveDuplicate(reportId: string, body: Record<string, unknown>) {
-    if (!operator.trim()) {
-      setErr("Enter your name first: duplicate decisions are recorded against a person.");
-      return;
-    }
+    if (!demandOperator("Enter your name first: duplicate decisions are recorded against a person.")) return;
     const res = await fetch("/api/duplicates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -251,10 +258,14 @@ export default function OpsBoard() {
           <label className="flex items-center gap-2 text-sm">
             <span className="text-paper-soft">Operator</span>
             <input
+              ref={operatorRef}
               value={operator}
               onChange={(e) => setOperator(e.target.value)}
               placeholder="your name"
-              className="rounded-lg border border-line bg-surface px-3 py-2 text-paper outline-none focus:border-brand-soft"
+              aria-invalid={!operator.trim()}
+              className={`rounded-lg border bg-surface px-3 py-2 text-paper outline-none focus:border-brand-soft ${
+                operator.trim() ? "border-line" : "border-amber-500/60"
+              }`}
             />
           </label>
         </div>
