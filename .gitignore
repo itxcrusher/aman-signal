@@ -55,3 +55,4 @@ data/
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 shots/
+certificates/
