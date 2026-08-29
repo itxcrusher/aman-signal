@@ -32,6 +32,12 @@ resources_required (array, each one of: rescue_boat, medical_team, evacuation, f
 locations_mentioned (array of strings, preserved exactly as the reporter said them, including colloquial descriptions)
 missing_information (array of strings: what a dispatcher would still need to ask)
 
+How to treat an attached photo:
+Report only what is VISIBLE in it. Water, damage, a blocked road and visible people are all things you may report if you can see them.
+Do NOT infer people from an empty scene. If a photo shows a flooded street but no people, do not report trapped_people; say under missing_information that it is unknown whether anyone is trapped.
+Do not infer a head count from a photo. people_affected comes from what the reporter states, not from what a picture implies.
+If the photo and the written report disagree, report both and note the disagreement in missing_information rather than choosing one.
+
 How to judge road_access, which reporters describe in degrees:
 "blocked" means nothing can get through.
 "partial" means some traffic still passes but not all, for example a motorcycle or a person on foot can get through but a car or ambulance cannot. Phrases like "motorcycle guzar sakti hai" or "raasta poori tarah band nahi hua" mean partial, NOT blocked.

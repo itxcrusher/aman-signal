@@ -11,8 +11,8 @@ Model `qwen3.5-omni-flash`, Alibaba Cloud Model Studio, Singapore region. Cases 
 | Cases passed | 10 / 10 |
 | Field accuracy | **100%** (32 / 32 assertions) |
 | Invention rate | **0%** (0 / 7 absent fields given a fabricated value) |
-| Strict rate | 14.3% (1 vague echo, see below) |
-| Latency p50 / p95 | **1040ms / 1953ms** |
+| Strict rate | **0%** (no vague echoes either, after the photo-grounding rules) |
+| Latency p50 / p95 | **1066ms / 1770ms** |
 | Deduplication sets | 2 / 3 fully automatic, 1 partially deferred to an operator |
 
 ## Invention: the number that matters
@@ -21,9 +21,7 @@ A fabricated location or head count sends a rescue team to the wrong address, so
 
 **Zero substantive inventions.** The model did not manufacture a place name, a head count, or a casualty figure that was absent from the source.
 
-One **vague echo** is counted separately and is reported here rather than hidden: given `pani ghar mein aa gaya hai` ("water has come into the house"), `locations_mentioned` returned `["ghar"]`. The word is present in the report, so nothing was invented, but "house" is not a location a dispatcher can act on. The product already handles this: the clarification loop treats vague values as no location and asks for a landmark, and the model itself listed "exact location address" under `missing_information`.
-
-Reporting only the strict 14.3% would overstate the risk; reporting only the 0% would hide a real usability gap. Both are published.
+An earlier run also recorded one **vague echo**, counted separately: given `pani ghar mein aa gaya hai` ("water has come into the house"), `locations_mentioned` returned `["ghar"]`. Nothing was invented, since the word is in the report, but "house" is not a location a dispatcher can act on. That echo disappeared when the photo-grounding rules below were added, which tightened grounding for text as well. Both numbers are still reported separately, because reporting only a strict rate overstates the risk and reporting only the substantive one would hide this class of gap if it returns.
 
 ## Field accuracy
 
@@ -42,6 +40,18 @@ An earlier prompt collapsed `partial` into `blocked`. That defect was found by t
 ## Negative handling
 
 Two non-emergencies (an office-hours question, and pleasant remarks about rain) were both typed `other` with no urgency indicators and no invented location or head count. The system does not force unrelated text into the incident schema.
+
+## Photo analysis
+
+Two controlled scenes were used rather than a real flood photograph, so what follows tests behaviour rather than recognition accuracy on field imagery.
+
+**The vision path works.** Given a flooded-street scene and no text at all, the model returned `blocked_access` with `road_access: blocked` and requested a rescue boat.
+
+**It does not invent an emergency from an unrelated photo.** A dry indoor scene submitted with a medical report ("meri ammi ki tabiyat kharab hai") returned `medical_emergency`, `road_access: unknown`, and no flood indicators of any kind.
+
+**One overreach was found and fixed.** On the first run, the flood scene alone produced `trapped_people` and the summary "people are trapped", from an image containing no people at all. Inferring humans from pixels that do not show them is exactly the failure that sends a boat to an empty street. The prompt now states that a photo may only be reported for what is visible in it, that people must not be inferred from an empty scene, and that a head count never comes from a picture. After the fix the same image returns `blocked_access` alone and moves "whether there are any people stranded" into `missing_information`.
+
+A photo accompanied by a report that *does* state people are on rooftops still returns `trapped_people`, because that fact is grounded in the reporter's words rather than the image.
 
 ## Deduplication
 
@@ -64,7 +74,7 @@ p50 1040ms, p95 1953ms, max 1953ms for text reports end to end, including valida
 ## Limitations
 
 - Ten extraction cases and three deduplication sets. Enough to catch the defects above, not enough for a confidence interval.
-- Text input only. Speech accuracy is measured separately against FLEURS; these cases do not re-measure it.
+- Text input only in the case set. Speech accuracy is measured separately against FLEURS, and photo behaviour is tested against controlled scenes rather than field photographs, so image recognition accuracy on real flood imagery is unmeasured.
 - Cases are author-written rather than collected from real reporters in a flood. They imitate the register but are not field data, and field audio will be noisier and less complete.
 - Single run per case; no variance estimate across repeated calls at temperature 0.1.
 - Deduplication thresholds (0.82 auto-link, 0.62 review, 500m, 6h) are set from these cases and would need retuning against real report volume.
