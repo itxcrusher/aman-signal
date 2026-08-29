@@ -11,12 +11,12 @@ import { useState } from "react";
  * There is deliberately no skip, because an optional-looking request gets dismissed
  * and the friction reappears at the worst possible moment.
  *
- * A browser denial is a different thing from a skip, and has to be handled. Once
- * refused, the page cannot prompt again; only the person can, in site settings. An
- * onboarding with no path after a denial does not produce a compliant user, it
- * produces someone who cannot report at all, including by typing. So a denial gets
- * instructions for re-enabling and one subordinate way through, shown only after the
- * refusal has actually happened.
+ * A denial is not routed around, it is resolved here. Letting someone continue with
+ * a blocked permission only defers the failure to the emergency itself, which is the
+ * one moment they cannot afford it: anyone struggling to grant access now will be in
+ * far more trouble doing it while standing in water. So a refusal explains exactly
+ * which permission was blocked and how to re-enable it, and the only way forward is
+ * to fix it and retry, while there is still time and calm to do so.
  */
 export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -59,10 +59,20 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <p className="urdu-ui mt-2 text-xl font-bold">ہنگامی اطلاع، آپ کی اپنی زبان میں</p>
           <p className="en mt-1 text-sm text-ink-soft">Emergency reporting, in your own language.</p>
 
+          {/* The trade is stated before anything is asked. Someone who understands
+              why a step exists completes it; someone who does not, dismisses it. */}
           <div className="mt-8 rounded-2xl bg-brand/5 p-5 ring-1 ring-brand">
             <h2 className="urdu-ui text-lg font-bold">جاری رکھنے کے لیے دو اجازتیں درکار ہیں</h2>
             <p className="en mt-1 text-sm text-ink-soft">
-              AmanSignal needs two permissions to work. Please allow both to continue.
+              AmanSignal needs two permissions before you can continue.
+            </p>
+            <p className="urdu-ui mt-4 text-base font-semibold text-ink">
+              ابھی ایک منٹ لگائیں تاکہ ہنگامی وقت میں ایک لمحہ بھی ضائع نہ ہو۔
+            </p>
+            <p className="en mt-1 text-sm text-ink">
+              Spend a minute on this now so that in an emergency you lose none. Set up
+              here, reporting takes one tap and your voice. Left until the water is
+              rising, these same prompts cost time you will not have.
             </p>
           </div>
 
@@ -100,11 +110,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               </div>
             </section>
 
-            <p className="urdu-ui text-base font-medium">
-              یہ اجازتیں ابھی دے دیں تاکہ ہنگامی وقت میں صرف بولنا کافی ہو۔
-            </p>
             <p className="en text-sm text-ink-soft">
-              Granting these now means that in an emergency you only have to speak.
+              Your location is only read when you send a report, and the microphone
+              only while you are recording one.
             </p>
           </div>
 
@@ -117,12 +125,24 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 Your browser blocked {!result?.location && !result?.mic
                   ? "both permissions"
                   : !result?.location ? "location" : "the microphone"}.
-                We cannot ask again from here. Open the padlock icon beside the web
-                address, allow{" "}
+                We cannot ask again from here, so please enable{" "}
                 {!result?.location && !result?.mic
                   ? "Location and Microphone"
                   : !result?.location ? "Location" : "Microphone"}
-                , then tap Try again.
+                {" "}yourself, then tap Try again.
+              </p>
+              <ul className="en mt-3 list-disc space-y-1 pr-5 text-sm text-ink-soft">
+                <li>Tap the padlock or icon beside the web address.</li>
+                <li>Open Permissions, or Site settings.</li>
+                <li>Set the blocked permission to Allow.</li>
+                <li>Return here and tap Try again.</li>
+              </ul>
+              <p className="urdu-ui mt-3 text-sm font-medium text-ink">
+                یہ اجازت اب دینا ضروری ہے۔ ہنگامی وقت میں یہ مسئلہ حل کرنا بہت مشکل ہوگا۔
+              </p>
+              <p className="en mt-1 text-sm text-ink-soft">
+                It is important to resolve this now. In an emergency there will be no
+                time to fix a blocked permission.
               </p>
             </div>
           ) : null}
@@ -143,18 +163,6 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             </span>
           </button>
 
-          {/* Only after a real denial, and deliberately understated: someone who
-              cannot grant permission must still be able to report an emergency. */}
-          {denied ? (
-            <button
-              type="button"
-              onClick={onDone}
-              className="w-full rounded-xl px-6 py-3 text-sm text-ink-soft underline underline-offset-4"
-            >
-              <span className="urdu-ui block">اجازت کے بغیر صرف لکھ کر اطلاع دیں</span>
-              <span className="en text-xs">Report by typing only, without these permissions</span>
-            </button>
-          ) : null}
         </div>
       </div>
     </main>
