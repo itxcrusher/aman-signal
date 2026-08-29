@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 import type { Extraction } from "./schema";
+import { districtFor } from "./districts";
 
 /**
  * Reports are immutable evidence. Incidents are the operational interpretation.
@@ -73,10 +74,19 @@ const MIGRATIONS: Record<string, Record<string, string>> = {
     // Whether the citizen moved the pin off the GPS fix. A hand-placed pin in a
     // dense street is usually better than a 40m fix, and dedup needs to know.
     pin_adjusted: "INTEGER",
+    // The reporter saying the danger has passed. It is recorded as their claim,
+    // never as a resolution: only an operator closes an incident, because someone
+    // may be safe while their neighbours are not.
+    citizen_safe: "INTEGER",
+    citizen_safe_at: "INTEGER",
   },
   incidents: {
     assigned_at: "INTEGER",
     assigned_by: "TEXT",
+    // Which control room owns this. Relief is run district by district, so a
+    // national list of everything in the country is worse than useless to the
+    // person staffing one room.
+    district: "TEXT",
   },
 };
 
@@ -121,6 +131,8 @@ export type ReportRow = {
   reporter_name: string | null;
   reporter_phone: string | null;
   pin_adjusted: number | null;
+  citizen_safe: number | null;
+  citizen_safe_at: number | null;
   extraction_json: string | null;
   repairs_json: string | null;
   clarifications_json: string | null;
@@ -141,6 +153,7 @@ export type IncidentRow = {
   assigned_to: string | null;
   assigned_at: number | null;
   assigned_by: string | null;
+  district: string | null;
 };
 
 export const id = () =>
@@ -216,13 +229,14 @@ export function audit(
 export function createIncident(e: Extraction, lat: number | null, lon: number | null) {
   const iid = id();
   const now = Date.now();
+  const district = districtFor(lat, lon);
   db()
     .prepare(
-      `INSERT INTO incidents (id, created_at, updated_at, status, incident_type, lat, lon, summary, assigned_to)
-       VALUES (?,?,?,?,?,?,?,?,NULL)`,
+      `INSERT INTO incidents (id, created_at, updated_at, status, incident_type, lat, lon, summary, assigned_to, district)
+       VALUES (?,?,?,?,?,?,?,?,NULL,?)`,
     )
-    .run(iid, now, now, "new", e.incident_type, lat, lon, e.english_summary);
-  audit(iid, "ai", "incident_created", `type=${e.incident_type}`);
+    .run(iid, now, now, "new", e.incident_type, lat, lon, e.english_summary, district);
+  audit(iid, "ai", "incident_created", `type=${e.incident_type}${district ? ` district=${district}` : ""}`);
   return iid;
 }
 
@@ -244,6 +258,38 @@ export function linkReportToIncident(rid: string, incidentId: string) {
     .prepare("UPDATE reports SET incident_id = ?, status = 'confirmed' WHERE id = ?")
     .run(incidentId, rid);
   db().prepare("UPDATE incidents SET updated_at = ? WHERE id = ?").run(Date.now(), incidentId);
+  backfillLocation(incidentId);
+}
+
+/**
+ * Give an incident coordinates and a district once any of its reports has them.
+ *
+ * The first report to arrive often has no location: someone typing in a hurry, or
+ * a phone that never got a fix. A later report about the same emergency may be
+ * precisely placed, and without this the incident would stay unplaced and unowned
+ * forever, invisible on the map and belonging to no control room.
+ */
+export function backfillLocation(incidentId: string) {
+  const inc = db()
+    .prepare("SELECT lat, lon, district FROM incidents WHERE id = ?")
+    .get(incidentId) as { lat: number | null; lon: number | null; district: string | null } | undefined;
+  if (!inc) return;
+  if (inc.lat !== null && inc.lon !== null && inc.district) return;
+
+  const placed = db()
+    .prepare(
+      `SELECT lat, lon FROM reports
+        WHERE incident_id = ? AND lat IS NOT NULL AND lon IS NOT NULL
+        ORDER BY pin_adjusted DESC, created_at ASC LIMIT 1`,
+    )
+    .get(incidentId) as { lat: number; lon: number } | undefined;
+  if (!placed) return;
+
+  const lat = inc.lat ?? placed.lat;
+  const lon = inc.lon ?? placed.lon;
+  db()
+    .prepare("UPDATE incidents SET lat = ?, lon = ?, district = COALESCE(district, ?) WHERE id = ?")
+    .run(lat, lon, districtFor(lat, lon), incidentId);
 }
 
 export function reportsFor(incidentId: string): ReportRow[] {
@@ -275,6 +321,38 @@ export function setIncidentStatus(
     )
     .run(status, now, assignedTo ?? null, assignedTo ?? null, now, assignedTo ?? null, actor, iid);
   audit(iid, actor, "status_change", status + (assignedTo ? ` -> ${assignedTo}` : ""));
+}
+
+/**
+ * A reporter marking themselves safe.
+ *
+ * This is a claim by the person, not a resolution of the incident. It never closes
+ * anything: they may be out of the water while the people next door are not, and
+ * only an operator can decide an incident is over. Its value is that a dispatcher
+ * learns a team can go elsewhere, which is worth a great deal during a flood.
+ *
+ * Scoped to the reporter's own device id, so nobody can mark a stranger safe.
+ */
+export function setCitizenSafe(reportId: string, reporterId: string, safe: boolean): boolean {
+  const now = Date.now();
+  const res = db()
+    .prepare(
+      `UPDATE reports SET citizen_safe = ?, citizen_safe_at = ?
+        WHERE id = ? AND reporter_id = ?`,
+    )
+    .run(safe ? 1 : 0, safe ? now : null, reportId, reporterId);
+  if (res.changes === 0) return false;
+  const row = getReport(reportId);
+  if (row?.incident_id) {
+    audit(
+      row.incident_id,
+      "citizen",
+      safe ? "reported_safe" : "safe_withdrawn",
+      `report=${reportId}`,
+    );
+    db().prepare("UPDATE incidents SET updated_at = ? WHERE id = ?").run(now, row.incident_id);
+  }
+  return true;
 }
 
 export type MyReportRow = ReportRow & {

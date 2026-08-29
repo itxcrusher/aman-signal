@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
+import OpsOnboarding, { type OpsIdentity } from "./OpsOnboarding";
+import { districtName } from "@/lib/districts";
 import dynamic from "next/dynamic";
 import { LABEL, STATUS_FLOW } from "@/lib/incident";
 
@@ -60,6 +62,7 @@ type Incident = {
   summary: string | null;
   created_at: number;
   assigned_to: string | null;
+  district: string | null;
   assigned_at: number | null;
   assigned_by: string | null;
   lat: number | null;
@@ -111,30 +114,22 @@ function timeAgo(ts: number) {
   return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
 }
 
+const IDENTITY_KEY = "amansignal.ops";
+
 export default function OpsBoard() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [open, setOpen] = useState<string | null>(null);
-  const [operator, setOperator] = useState("");
+  // undefined while localStorage is being read, null when setup is needed.
+  const [identity, setIdentity] = useState<OpsIdentity | null | undefined>(undefined);
+  const [editingIdentity, setEditingIdentity] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [reassigning, setReassigning] = useState<string | null>(null);
-  const operatorRef = useRef<HTMLInputElement | null>(null);
-
-  /**
-   * Refusing an unattributed action is correct, but the refusal used to appear in a
-   * banner at the top of the page, six hundred pixels above the button that was
-   * pressed. Anyone working the review queue saw nothing happen at all and read the
-   * control as broken. The name field is now brought to them and focused, so the
-   * requirement is visible at the moment it blocks them.
-   */
-  function demandOperator(message: string): boolean {
-    if (operator.trim()) return true;
-    setErr(message);
-    operatorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-    operatorRef.current?.focus();
-    return false;
-  }
+  // Setup guarantees a name before the board renders, so no action can be
+  // unattributed and no guard has to refuse one. This previously failed at the
+  // point of the click, in a banner far from the button that was pressed.
+  const operator = identity?.operator ?? "";
   const [team, setTeam] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<PendingDup[]>([]);
 
@@ -163,8 +158,35 @@ export default function OpsBoard() {
   }, [load]);
 
   useEffect(() => {
-    setOperator(localStorage.getItem("amansignal.operator") ?? "");
+    try {
+      const raw = localStorage.getItem(IDENTITY_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<OpsIdentity>;
+        if (parsed.operator && parsed.district) {
+          setIdentity({
+            operator: parsed.operator,
+            district: parsed.district,
+            organisation: parsed.organisation ?? "",
+          });
+          return;
+        }
+      }
+    } catch {
+      /* A browser refusing storage just means setting up again. */
+    }
+    setIdentity(null);
   }, []);
+
+  function saveIdentity(next: OpsIdentity) {
+    setIdentity(next);
+    setEditingIdentity(false);
+    setErr(null);
+    try {
+      localStorage.setItem(IDENTITY_KEY, JSON.stringify(next));
+    } catch {
+      /* Not fatal: the board works, it just asks again next time. */
+    }
+  }
 
   /**
    * Change the responding team without moving the incident's status.
@@ -175,14 +197,12 @@ export default function OpsBoard() {
    * on the board is worse than none: it sends a dispatcher chasing the wrong radio.
    */
   async function reassign(inc: Incident) {
-    if (!demandOperator("Enter your name first: every assignment is recorded against a person.")) return;
     const next = (team[inc.id] ?? "").trim();
     if (!next) {
       setReassigning(inc.id);
       setErr(null);
       return;
     }
-    localStorage.setItem("amansignal.operator", operator.trim());
     const res = await fetch(`/api/incidents/${inc.id}/assign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -199,7 +219,6 @@ export default function OpsBoard() {
   }
 
   async function advance(inc: Incident, status: string) {
-    if (!demandOperator("Enter your name first: every status change is recorded against a person.")) return;
     // Assigning a team needs a team name, collected inline rather than in a native
     // dialog: it must be styleable, testable, and must not block the tab.
     if (status === "assigned" && !(team[inc.id] ?? "").trim()) {
@@ -207,7 +226,6 @@ export default function OpsBoard() {
       setErr(null);
       return;
     }
-    localStorage.setItem("amansignal.operator", operator.trim());
     const res = await fetch(`/api/incidents/${inc.id}/status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -228,7 +246,6 @@ export default function OpsBoard() {
   }
 
   async function resolveDuplicate(reportId: string, body: Record<string, unknown>) {
-    if (!demandOperator("Enter your name first: duplicate decisions are recorded against a person.")) return;
     const res = await fetch("/api/duplicates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -243,6 +260,33 @@ export default function OpsBoard() {
     load();
   }
 
+  /**
+   * This room's incidents.
+   *
+   * An incident the system could not place is shown to every room rather than
+   * hidden from all of them. That is the safe failure: several control rooms
+   * seeing one unplaced emergency costs a phone call, whereas none seeing it
+   * costs far more.
+   */
+  const mine = incidents.filter(
+    (i) => i.district === identity?.district || i.district === null,
+  );
+  const elsewhere = incidents.length - mine.length;
+
+  if (identity === undefined) {
+    return <main className="min-h-screen bg-ground" aria-busy="true" />;
+  }
+
+  if (identity === null || editingIdentity) {
+    return (
+      <OpsOnboarding
+        initial={identity}
+        onDone={saveIdentity}
+        onCancel={identity ? () => setEditingIdentity(false) : undefined}
+      />
+    );
+  }
+
   return (
     <main className="min-h-screen bg-ground text-paper">
       <header className="border-b border-line px-6 py-4">
@@ -255,19 +299,22 @@ export default function OpsBoard() {
               The system highlights urgency indicators. You decide what is worked first.
             </p>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-paper-soft">Operator</span>
-            <input
-              ref={operatorRef}
-              value={operator}
-              onChange={(e) => setOperator(e.target.value)}
-              placeholder="your name"
-              aria-invalid={!operator.trim()}
-              className={`rounded-lg border bg-surface px-3 py-2 text-paper outline-none focus:border-brand-soft ${
-                operator.trim() ? "border-line" : "border-amber-500/60"
-              }`}
-            />
-          </label>
+          <div className="flex items-center gap-3 text-sm">
+            <div className="text-right">
+              <p className="font-medium text-paper">{districtName(identity.district)} control room</p>
+              <p className="text-xs text-paper-soft">
+                {identity.operator}
+                {identity.organisation ? ` · ${identity.organisation}` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingIdentity(true)}
+              className="rounded-lg px-3 py-2 text-paper-soft ring-1 ring-line transition-colors hover:text-paper"
+            >
+              Change
+            </button>
+          </div>
         </div>
       </header>
 
@@ -278,9 +325,9 @@ export default function OpsBoard() {
           </p>
         ) : null}
 
-        {incidents.length ? (
+        {mine.length ? (
           <IncidentMap
-            incidents={incidents}
+            incidents={mine}
             selectedId={open}
             onSelect={(id) => {
               setOpen(id);
@@ -350,16 +397,30 @@ export default function OpsBoard() {
 
         {loading ? (
           <p className="text-paper-soft">Loading incidents...</p>
-        ) : incidents.length === 0 ? (
+        ) : mine.length === 0 ? (
           <div className="rounded-2xl border border-line bg-surface p-10 text-center">
-            <p className="font-semibold">No incidents yet</p>
-            <p className="mt-1 text-sm text-paper-soft">
-              Confirmed citizen reports appear here as incidents.
+            <p className="font-semibold">
+              Nothing open in {districtName(identity.district)}
             </p>
+            <p className="mt-1 text-sm text-paper-soft">
+              Confirmed citizen reports from this district appear here as incidents.
+            </p>
+            {elsewhere > 0 ? (
+              <p className="mt-3 text-sm text-paper-soft">
+                {elsewhere} incident{elsewhere === 1 ? " is" : "s are"} open in other
+                districts, handled by their own control rooms.
+              </p>
+            ) : null}
           </div>
         ) : (
           <ul className="space-y-3">
-            {incidents.map((inc) => {
+            {elsewhere > 0 ? (
+              <li className="px-1 text-xs text-paper-soft">
+                Showing {mine.length} in {districtName(identity.district)}. {elsewhere}{" "}
+                elsewhere {elsewhere === 1 ? "is" : "are"} handled by another control room.
+              </li>
+            ) : null}
+            {mine.map((inc) => {
               const isOpen = open === inc.id;
               return (
                 <li

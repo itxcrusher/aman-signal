@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getReport, updateReport, createIncident, audit } from "@/lib/db";
+import { getReport, updateReport, createIncident, audit, backfillLocation } from "@/lib/db";
 import { findDuplicate } from "@/lib/dedup";
 import { ExtractionSchema } from "@/lib/schema";
 
@@ -146,6 +146,7 @@ export async function POST(req: NextRequest) {
       clarifications_json: JSON.stringify(answers),
       dedup_json: JSON.stringify([decision.candidate]),
     });
+    backfillLocation(incidentId);
     audit(
       incidentId,
       "ai",

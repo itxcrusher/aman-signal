@@ -15,6 +15,7 @@ export async function GET() {
       summary: inc.summary,
       created_at: inc.created_at,
       assigned_to: inc.assigned_to,
+      district: inc.district,
       assigned_at: inc.assigned_at,
       assigned_by: inc.assigned_by,
       lat: inc.lat,
@@ -42,6 +43,7 @@ export async function GET() {
         // phone number can settle in one call what a map cannot.
         reporter_name: r.reporter_name,
         reporter_phone: r.reporter_phone,
+        citizen_safe: r.citizen_safe === 1,
         latency_ms: r.latency_ms,
         model: r.model,
         repairs: r.repairs_json ? JSON.parse(r.repairs_json) : [],
