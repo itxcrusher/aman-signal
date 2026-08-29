@@ -74,6 +74,9 @@ export default function CitizenIntake() {
 
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const audioCtx = useRef<AudioContext | null>(null);
+  const peakLevel = useRef(0);
+  const [silentMic, setSilentMic] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const audioEl = useRef<HTMLAudioElement | null>(null);
 
@@ -99,30 +102,6 @@ export default function CitizenIntake() {
     } finally {
       setSpeaking(false);
     }
-  }, []);
-
-  const startRecording = useCallback(async () => {
-    try {
-      startComposing();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunks.current = [];
-      mr.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data);
-      mr.onstop = () => {
-        setAudio(new Blob(chunks.current, { type: mr.mimeType || "audio/webm" }));
-        stream.getTracks().forEach((t) => t.stop());
-      };
-      mr.start();
-      recorder.current = mr;
-      setRecording(true);
-    } catch {
-      setError("Microphone unavailable. You can still type your report.");
-    }
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    recorder.current?.stop();
-    setRecording(false);
   }, []);
 
   const getLocation = useCallback(() => {
@@ -166,6 +145,65 @@ export default function CitizenIntake() {
     setOnboarded(seen);
     if (seen) getLocation();
   }, [getLocation]);
+
+  const startRecording = useCallback(async () => {
+    try {
+      if (!askedForLocation.current && !coords) getLocation();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      /**
+       * Watch the signal while recording.
+       *
+       * A muted or dead input still produces a valid, correctly sized audio file
+       * containing pure silence. Sent onward, that silence reaches the model, and a
+       * model asked to interpret an emergency report from nothing is being invited
+       * to invent one: an earlier silent recording came back as a fluent flood
+       * report describing people trapped who did not exist. Catching it here means
+       * the citizen is told their microphone is not working, at the moment they can
+       * still do something about it, instead of a dispatcher receiving fiction.
+       */
+      audioCtx.current?.close().catch(() => {});
+      const ctx = new AudioContext();
+      audioCtx.current = ctx;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      peakLevel.current = 0;
+      const sample = () => {
+        if (ctx.state === "closed") return;
+        analyser.getByteTimeDomainData(buf);
+        let peak = 0;
+        for (const v of buf) peak = Math.max(peak, Math.abs(v - 128));
+        peakLevel.current = Math.max(peakLevel.current, peak);
+        if (recorder.current?.state === "recording") requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+
+      const mr = new MediaRecorder(stream);
+      chunks.current = [];
+      mr.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data);
+      mr.onstop = () => {
+        // A live microphone in a quiet room still registers a few counts of noise;
+        // a dead or muted one sits flat at zero.
+        const heard = peakLevel.current > 2;
+        setSilentMic(!heard);
+        setAudio(heard ? new Blob(chunks.current, { type: mr.mimeType || "audio/webm" }) : null);
+        stream.getTracks().forEach((t) => t.stop());
+        ctx.close().catch(() => {});
+      };
+      mr.start();
+      recorder.current = mr;
+      setRecording(true);
+    } catch {
+      setError("Microphone unavailable. You can still type your report.");
+    }
+  }, [coords, getLocation]);
+
+  const stopRecording = useCallback(() => {
+    recorder.current?.stop();
+    setRecording(false);
+  }, []);
 
   const startComposing = useCallback(() => {
     // Anyone who declined at onboarding still gets one contextual chance, at the
@@ -297,6 +335,18 @@ export default function CitizenIntake() {
               </button>
               {audio && !recording ? (
                 <p className="en text-sm text-ok">Voice note attached.</p>
+              ) : null}
+              {silentMic && !recording ? (
+                <div role="alert" className="rounded-xl bg-red-50 p-4 ring-1 ring-critical">
+                  <p className="urdu-ui text-base font-semibold text-critical">
+                    آپ کی آواز سنائی نہیں دی
+                  </p>
+                  <p className="en mt-1 text-sm text-ink">
+                    We recorded nothing at all, so your microphone is muted or the
+                    wrong one is selected. Check it and record again, or type your
+                    report instead. We will not send an empty recording.
+                  </p>
+                </div>
               ) : null}
 
               <label className="flex cursor-pointer items-center justify-between rounded-2xl bg-day-surface px-5 py-4 text-lg font-semibold ring-1 ring-day-line hover:bg-slate-50">
