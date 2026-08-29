@@ -161,7 +161,7 @@ export default function IncidentMap({
           ) : null}
         </p>
       </div>
-      <div ref={container} className="h-[380px] w-full bg-ground" />
+      <div ref={container} className="ops-map h-[380px] w-full bg-ground" />
     </div>
   );
 }

@@ -15,6 +15,8 @@ export async function GET() {
       summary: inc.summary,
       created_at: inc.created_at,
       assigned_to: inc.assigned_to,
+      assigned_at: inc.assigned_at,
+      assigned_by: inc.assigned_by,
       lat: inc.lat,
       lon: inc.lon,
       urgency: view.urgency,
@@ -35,6 +37,11 @@ export async function GET() {
         has_image: Boolean(r.image_path),
         lat: r.lat,
         lon: r.lon,
+        pin_adjusted: r.pin_adjusted === 1,
+        // Who to call. The most actionable field on the board: a dispatcher with a
+        // phone number can settle in one call what a map cannot.
+        reporter_name: r.reporter_name,
+        reporter_phone: r.reporter_phone,
         latency_ms: r.latency_ms,
         model: r.model,
         repairs: r.repairs_json ? JSON.parse(r.repairs_json) : [],

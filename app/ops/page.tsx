@@ -19,6 +19,9 @@ type Report = {
   raw_text: string | null;
   has_audio: boolean;
   has_image: boolean;
+  pin_adjusted: boolean;
+  reporter_name: string | null;
+  reporter_phone: string | null;
   latency_ms: number | null;
   model: string | null;
   repairs: string[];
@@ -57,6 +60,8 @@ type Incident = {
   summary: string | null;
   created_at: number;
   assigned_to: string | null;
+  assigned_at: number | null;
+  assigned_by: string | null;
   lat: number | null;
   lon: number | null;
   urgency: { indicator: string; sources: number }[];
@@ -113,6 +118,7 @@ export default function OpsBoard() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [reassigning, setReassigning] = useState<string | null>(null);
   const [team, setTeam] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<PendingDup[]>([]);
 
@@ -143,6 +149,41 @@ export default function OpsBoard() {
   useEffect(() => {
     setOperator(localStorage.getItem("amansignal.operator") ?? "");
   }, []);
+
+  /**
+   * Change the responding team without moving the incident's status.
+   *
+   * The status flow can only attach a team at the moment of assignment, so once an
+   * incident is responding there is no way to record that a different team took it
+   * over. That happens constantly in a real operation, and an out-of-date team name
+   * on the board is worse than none: it sends a dispatcher chasing the wrong radio.
+   */
+  async function reassign(inc: Incident) {
+    if (!operator.trim()) {
+      setErr("Enter your name first: every assignment is recorded against a person.");
+      return;
+    }
+    const next = (team[inc.id] ?? "").trim();
+    if (!next) {
+      setReassigning(inc.id);
+      setErr(null);
+      return;
+    }
+    localStorage.setItem("amansignal.operator", operator.trim());
+    const res = await fetch(`/api/incidents/${inc.id}/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ team: next, operator: operator.trim() }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErr(j.error ?? "Assignment failed.");
+      return;
+    }
+    setErr(null);
+    setReassigning(null);
+    load();
+  }
 
   async function advance(inc: Incident, status: string) {
     if (!operator.trim()) {
@@ -411,6 +452,34 @@ export default function OpsBoard() {
                           Mark {s}
                         </button>
                       ))}
+                      {inc.assigned_to && reassigning !== inc.id ? (
+                        <button
+                          type="button"
+                          onClick={() => reassign(inc)}
+                          className="cursor-pointer rounded-lg px-3 py-2 text-sm text-paper-soft ring-1 ring-line transition-colors hover:bg-surface-2"
+                        >
+                          Change team
+                        </button>
+                      ) : null}
+                      {reassigning === inc.id ? (
+                        <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-brand-soft">
+                          <label htmlFor={`reteam-${inc.id}`} className="mb-1 block text-xs text-paper-soft">
+                            Hand over to which team?
+                          </label>
+                          <input
+                            id={`reteam-${inc.id}`}
+                            autoFocus
+                            value={team[inc.id] ?? ""}
+                            onChange={(e) => setTeam((t) => ({ ...t, [inc.id]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") reassign(inc);
+                              if (e.key === "Escape") setReassigning(null);
+                            }}
+                            placeholder={inc.assigned_to ?? "e.g. Boat Team 3"}
+                            className="w-full rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-paper outline-none focus:border-brand-soft"
+                          />
+                        </div>
+                      ) : null}
                       {assigning === inc.id ? (
                         <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-brand-soft">
                           <label htmlFor={`team-${inc.id}`} className="mb-1 block text-xs text-paper-soft">
@@ -450,8 +519,28 @@ export default function OpsBoard() {
                               <span>{r.status}</span>
                               {r.has_audio ? <span className="text-teal-300">voice note</span> : null}
                               {r.has_image ? <span className="text-teal-300">photo</span> : null}
+                              {r.pin_adjusted ? (
+                                <span className="text-teal-300">pin placed by reporter</span>
+                              ) : null}
                               {r.latency_ms ? <span>{r.latency_ms}ms · {r.model}</span> : null}
                             </div>
+                            {/* Who to call. A dispatcher with a phone number can
+                                settle in one call what a map cannot: whether the
+                                water is still rising, whether they have moved. */}
+                            {r.reporter_phone || r.reporter_name ? (
+                              <p className="mb-2 text-sm">
+                                <span className="text-paper-soft">Reporter: </span>
+                                <span className="text-paper">{r.reporter_name || "not given"}</span>
+                                {r.reporter_phone ? (
+                                  <a
+                                    href={`tel:${r.reporter_phone}`}
+                                    className="ml-2 rounded-md bg-brand/20 px-2 py-1 font-medium text-brand-soft hover:underline"
+                                  >
+                                    {r.reporter_phone}
+                                  </a>
+                                ) : null}
+                              </p>
+                            ) : null}
                             {r.raw_text ? (
                               <p className="mb-2 text-sm text-paper" dir="auto">{r.raw_text}</p>
                             ) : null}

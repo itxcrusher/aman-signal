@@ -102,35 +102,41 @@ button, a, [role="button"], input, select, textarea {
   }
 }
 
+/* Two surfaces, two basemaps. The citizen app is light and shows the map as drawn;
+   the operations board is dark. These rules were originally unscoped, which painted
+   the citizen's map black on a white screen and read as a broken tile layer. Every
+   dark treatment below is therefore scoped to .ops-map. */
+.leaflet-container {
+  background: var(--color-day-surface);
+  font-family: var(--font-latin);
+}
+
 /* Darken the basemap in CSS rather than depending on a dark tile provider. Free
    dark basemaps now require an API key, and a key that lapses watermarks every tile
    with "API KEY REQUIRED" in front of whoever is watching. The filter is applied to
    the tile pane only, so markers keep their true semantic colours. */
-.leaflet-tile-pane {
+.ops-map .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7);
 }
 
-/* Leaflet chrome, matched to the dark operations surface rather than left in its
-   default light styling, which reads as a foreign widget dropped into the page. */
-.leaflet-container {
+.ops-map.leaflet-container {
   background: var(--color-ground);
-  font-family: var(--font-latin);
 }
 
-.leaflet-control-zoom a,
-.leaflet-control-attribution {
+.ops-map .leaflet-control-zoom a,
+.ops-map .leaflet-control-attribution {
   background: var(--color-surface) !important;
   color: var(--color-paper-soft) !important;
   border-color: var(--color-line) !important;
 }
 
-.leaflet-control-attribution a { color: var(--color-brand-soft) !important; }
+.ops-map .leaflet-control-attribution a { color: var(--color-brand-soft) !important; }
 
-.leaflet-tooltip {
+.ops-map .leaflet-tooltip {
   background: var(--color-surface-2);
   color: var(--color-paper);
   border: 1px solid var(--color-line);
   box-shadow: none;
 }
 
-.leaflet-tooltip-top::before { border-top-color: var(--color-line); }
+.ops-map .leaflet-tooltip-top::before { border-top-color: var(--color-line); }
