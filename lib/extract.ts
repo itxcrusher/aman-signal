@@ -20,8 +20,8 @@ export const DEFAULT_MODEL = process.env.AMANSIGNAL_MODEL ?? "qwen3.5-omni-flash
 const EXTRACT_PROMPT = `You are a disaster-report intake system for flood emergencies in Pakistan.
 Interpret the citizen's report and return ONLY a JSON object, no prose, no markdown fence, with these keys:
 language_detected (one of: ur, ur-Latn, en, mixed)
-transcript_urdu (Urdu script; empty string if the report was not spoken/written in Urdu)
-transcript_roman_urdu (Latin letters, as Pakistanis type on WhatsApp)
+transcript_urdu (the report written in Urdu script)
+transcript_roman_urdu (the same words in Latin letters, as Pakistanis type on WhatsApp)
 english_summary (one or two sentences)
 incident_type (one of: flood_entrapment, flood_damage, medical_emergency, blocked_access, other)
 urgency_indicators (array, each one of: trapped_people, medical_need, rising_water, blocked_access, no_safe_route, structural_damage)
@@ -31,6 +31,12 @@ road_access (one of: open, partial, blocked, unknown)
 resources_required (array, each one of: rescue_boat, medical_team, evacuation, food_water, shelter)
 locations_mentioned (array of strings, preserved exactly as the reporter said them, including colloquial descriptions)
 missing_information (array of strings: what a dispatcher would still need to ask)
+
+How to write the transcripts:
+If the report was SPOKEN, always fill transcript_urdu in Urdu script, whatever script you would otherwise choose. The reporter reads that line back to check you understood them, and most Urdu speakers read Urdu script, not Latin. Fill transcript_roman_urdu with the same words in Latin letters.
+If the report was TYPED, transcribe it in the script the reporter used and provide the other form as well where you can.
+language_detected describes the language the reporter used, not the script you wrote the transcript in. Urdu spoken aloud is "ur" even when you also render it in Latin letters.
+Leave transcript_urdu empty only when the report is genuinely not Urdu at all, for example plain English.
 
 How to treat an attached photo:
 Report only what is VISIBLE in it. Water, damage, a blocked road and visible people are all things you may report if you can see them.
@@ -232,16 +238,30 @@ function hasUsableLocation(e: Extraction): boolean {
  * Nothing is asked when the report is not an emergency: the schema mismatch is the
  * finding, and interrogating someone about a non-emergency wastes their time.
  */
-export function clarificationQuestions(e: Extraction): { field: string; ur: string; en: string }[] {
+export function clarificationQuestions(
+  e: Extraction,
+  opts: { hasCoordinates?: boolean } = {},
+): { field: string; ur: string; en: string }[] {
   const qs: { field: string; ur: string; en: string }[] = [];
   if (e.incident_type === "other" && e.urgency_indicators.length === 0) return qs;
 
   if (!hasUsableLocation(e)) {
-    qs.push({
-      field: "location",
-      ur: "آپ اس وقت کہاں ہیں؟ کوئی قریبی نشانی بتائیں، جیسے مسجد، پل یا اسکول۔",
-      en: "Where are you right now? Name a nearby landmark, such as a mosque, bridge or school.",
-    });
+    // With coordinates already captured, asking "where are you" wastes the one or
+    // two questions available and reads as though the app ignored the location it
+    // just took. Coordinates reach the street; a landmark reaches the door.
+    qs.push(
+      opts.hasCoordinates
+        ? {
+            field: "location",
+            ur: "آپ کے قریب کون سی نمایاں چیز ہے؟ جیسے مسجد، دکان یا اسکول، تاکہ ٹیم آپ تک پہنچ سکے۔",
+            en: "What is the nearest landmark to you, such as a mosque, shop or school, so the team can reach you?",
+          }
+        : {
+            field: "location",
+            ur: "آپ اس وقت کہاں ہیں؟ کوئی قریبی نشانی بتائیں، جیسے مسجد، پل یا اسکول۔",
+            en: "Where are you right now? Name a nearby landmark, such as a mosque, bridge or school.",
+          },
+    );
   }
   if (e.people_affected === null && e.urgency_indicators.includes("trapped_people")) {
     qs.push({

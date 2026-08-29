@@ -22,7 +22,7 @@ const STATEMENTS = [
     raw_text TEXT,
     audio_path TEXT,
     image_path TEXT,
-    lat REAL, lon REAL,
+    lat REAL, lon REAL, accuracy_m REAL,
     location_text TEXT,
     reporter_contact TEXT,
     extraction_json TEXT,
@@ -66,6 +66,9 @@ export function db(): Database.Database {
   if (!cols.some((c) => c.name === "dedup_json")) {
     _db.prepare("ALTER TABLE reports ADD COLUMN dedup_json TEXT").run();
   }
+  if (!cols.some((c) => c.name === "accuracy_m")) {
+    _db.prepare("ALTER TABLE reports ADD COLUMN accuracy_m REAL").run();
+  }
   return _db;
 }
 
@@ -81,6 +84,7 @@ export type ReportRow = {
   image_path: string | null;
   lat: number | null;
   lon: number | null;
+  accuracy_m: number | null;
   location_text: string | null;
   extraction_json: string | null;
   repairs_json: string | null;
@@ -109,10 +113,10 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
   db()
     .prepare(
       `INSERT INTO reports (id, created_at, status, incident_id, raw_text, audio_path,
-        image_path, lat, lon, location_text, extraction_json, repairs_json,
+        image_path, lat, lon, accuracy_m, location_text, extraction_json, repairs_json,
         clarifications_json, dedup_json, model, latency_ms)
        VALUES (@id, @created_at, @status, @incident_id, @raw_text, @audio_path,
-        @image_path, @lat, @lon, @location_text, @extraction_json, @repairs_json,
+        @image_path, @lat, @lon, @accuracy_m, @location_text, @extraction_json, @repairs_json,
         @clarifications_json, @dedup_json, @model, @latency_ms)`,
     )
     .run({
@@ -123,6 +127,7 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
       image_path: null,
       lat: null,
       lon: null,
+      accuracy_m: null,
       location_text: null,
       extraction_json: null,
       repairs_json: null,
@@ -141,7 +146,7 @@ export function getReport(rid: string): ReportRow | undefined {
 /** Field names are whitelisted against the table to keep interpolation safe. */
 const REPORT_FIELDS = new Set([
   "status", "incident_id", "raw_text", "audio_path", "image_path", "lat", "lon",
-  "location_text", "extraction_json", "repairs_json", "provenance_json",
+  "accuracy_m", "location_text", "extraction_json", "repairs_json", "provenance_json",
   "clarifications_json", "dedup_json", "model", "latency_ms",
 ]);
 

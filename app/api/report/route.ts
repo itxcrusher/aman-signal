@@ -44,8 +44,10 @@ export async function POST(req: NextRequest) {
   const locationText = (form.get("location_text") as string | null)?.slice(0, 500) ?? null;
   const latRaw = form.get("lat") as string | null;
   const lonRaw = form.get("lon") as string | null;
+  const accRaw = form.get("accuracy") as string | null;
   const lat = latRaw ? Number(latRaw) : null;
   const lon = lonRaw ? Number(lonRaw) : null;
+  const accuracy = accRaw ? Number(accRaw) : null;
 
   let audioPath: string | null = null;
   let imagePath: string | null = null;
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
     image_path: imagePath,
     lat: Number.isFinite(lat) ? lat : null,
     lon: Number.isFinite(lon) ? lon : null,
+    accuracy_m: accuracy !== null && Number.isFinite(accuracy) ? accuracy : null,
     location_text: locationText,
   });
 
@@ -99,7 +102,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     report_id: rid,
     extraction: result.data,
-    questions: clarificationQuestions(result.data!),
+    questions: clarificationQuestions(result.data!, {
+      hasCoordinates: Number.isFinite(lat) && Number.isFinite(lon),
+    }),
     repairs: result.repairs,
     latency_ms: result.latencyMs,
   });

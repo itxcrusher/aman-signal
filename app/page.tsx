@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { Extraction } from "@/lib/schema";
+import Onboarding from "./Onboarding";
+
+const ONBOARDED_KEY = "amansignal.onboarded";
 
 type Question = { field: string; ur: string; en: string };
 type Phase = "compose" | "sending" | "review" | "done" | "error";
@@ -57,8 +60,12 @@ export default function CitizenIntake() {
   const [recording, setRecording] = useState(false);
   const [audio, setAudio] = useState<Blob | null>(null);
   const [image, setImage] = useState<File | null>(null);
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lon: number; accuracy: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const askedForLocation = useRef(false);
+  // null while unknown, so the intake screen never flashes before onboarding.
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -96,6 +103,7 @@ export default function CitizenIntake() {
 
   const startRecording = useCallback(async () => {
     try {
+      startComposing();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       chunks.current = [];
@@ -118,16 +126,52 @@ export default function CitizenIntake() {
   }, []);
 
   const getLocation = useCallback(() => {
+    if (askedForLocation.current) return;
+    askedForLocation.current = true;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (p) => {
-        setCoords({ lat: p.coords.latitude, lon: p.coords.longitude });
+        setCoords({
+          lat: p.coords.latitude,
+          lon: p.coords.longitude,
+          // Accuracy decides whether these coordinates are worth acting on. A
+          // reading good to 20m puts a boat at the door; one good to 3km only
+          // narrows it to a neighbourhood, and a dispatcher must be able to tell
+          // those apart rather than seeing an undifferentiated "GPS" flag.
+          accuracy: Math.round(p.coords.accuracy),
+        });
         setLocating(false);
+        setLocationDenied(false);
       },
-      () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 10000 },
+      () => {
+        setLocating(false);
+        setLocationDenied(true);
+        // Allow a retry: the first refusal is often reflexive, and the button
+        // stays available for someone who changes their mind.
+        askedForLocation.current = false;
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
     );
   }, []);
+
+  /**
+   * Permission is requested once, during onboarding. From then on the browser
+   * remembers the grant, so capturing position on load raises no prompt and an
+   * emergency report costs nothing but speaking. Capture is started here rather
+   * than on first interaction because a fix can take several seconds to acquire,
+   * and it should already be waiting by the time the report is sent.
+   */
+  useEffect(() => {
+    const seen = localStorage.getItem(ONBOARDED_KEY) === "1";
+    setOnboarded(seen);
+    if (seen) getLocation();
+  }, [getLocation]);
+
+  const startComposing = useCallback(() => {
+    // Anyone who declined at onboarding still gets one contextual chance, at the
+    // moment their intent is unambiguous.
+    if (!askedForLocation.current && !coords) getLocation();
+  }, [coords, getLocation]);
 
   async function submit() {
     setPhase("sending");
@@ -139,6 +183,7 @@ export default function CitizenIntake() {
     if (coords) {
       fd.set("lat", String(coords.lat));
       fd.set("lon", String(coords.lon));
+      fd.set("accuracy", String(coords.accuracy));
     }
     try {
       const res = await fetch("/api/report", { method: "POST", body: fd });
@@ -182,6 +227,22 @@ export default function CitizenIntake() {
 
   const hasContent = text.trim() !== "" || audio !== null || image !== null;
 
+  if (onboarded === null) {
+    return <main className="min-h-screen bg-day" aria-busy="true" />;
+  }
+
+  if (!onboarded) {
+    return (
+      <Onboarding
+        onDone={() => {
+          localStorage.setItem(ONBOARDED_KEY, "1");
+          setOnboarded(true);
+          getLocation();
+        }}
+      />
+    );
+  }
+
   return (
     <main dir="rtl" className="min-h-screen bg-day text-ink">
       <div className="mx-auto max-w-xl px-5 py-6">
@@ -203,7 +264,10 @@ export default function CitizenIntake() {
               <textarea
                 id="report"
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  if (e.target.value.length === 1) startComposing();
+                }}
                 rows={5}
                 dir="auto"
                 placeholder="مثال: ہمارے گھر میں پانی آ گیا ہے..."
@@ -245,7 +309,10 @@ export default function CitizenIntake() {
                   accept="image/*"
                   capture="environment"
                   className="sr-only"
-                  onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    setImage(e.target.files?.[0] ?? null);
+                    startComposing();
+                  }}
                 />
                 <span aria-hidden className="text-2xl">+</span>
               </label>
@@ -259,7 +326,13 @@ export default function CitizenIntake() {
                 <span>
                   <span className="urdu-ui block text-base">اپنی جگہ بھیجیں</span>
                   <span className="en text-sm text-ink-soft">
-                    {coords ? "Location attached" : locating ? "Finding you..." : "Share your location"}
+                    {coords
+                      ? `Location attached (accurate to about ${coords.accuracy}m)`
+                      : locating
+                        ? "Finding you..."
+                        : locationDenied
+                          ? "Location unavailable, tap to try again"
+                          : "Share your location"}
                   </span>
                 </span>
                 <span aria-hidden className="text-2xl">{coords ? "✓" : "◎"}</span>
@@ -344,10 +417,18 @@ export default function CitizenIntake() {
                   </div>
                 ) : null}
 
-                {extraction.transcript_urdu ? (
+                {/* Whichever transcript came back. A spoken report can return only
+                    the Roman form, and showing nothing leaves the reporter unable to
+                    check that they were heard correctly, which is the entire purpose
+                    of this screen. */}
+                {extraction.transcript_urdu || extraction.transcript_roman_urdu ? (
                   <div>
                     <dt className="en text-sm text-ink-soft">What we heard</dt>
-                    <dd className="urdu text-base">{extraction.transcript_urdu}</dd>
+                    {extraction.transcript_urdu ? (
+                      <dd className="urdu text-base">{extraction.transcript_urdu}</dd>
+                    ) : (
+                      <dd className="roman-urdu text-base">{extraction.transcript_roman_urdu}</dd>
+                    )}
                   </div>
                 ) : null}
               </dl>
