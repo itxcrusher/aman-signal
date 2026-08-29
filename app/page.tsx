@@ -327,7 +327,9 @@ export default function CitizenIntake() {
                   <span className="urdu-ui block text-base">اپنی جگہ بھیجیں</span>
                   <span className="en text-sm text-ink-soft">
                     {coords
-                      ? `Location attached (accurate to about ${coords.accuracy}m)`
+                      ? coords.accuracy > 0
+                        ? `Location attached (accurate to about ${coords.accuracy}m)`
+                        : "Location attached"
                       : locating
                         ? "Finding you..."
                         : locationDenied

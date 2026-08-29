@@ -34,15 +34,20 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       );
     });
 
-    let mic = false;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // This asks for permission; it does not record. Release the device at once.
-      stream.getTracks().forEach((t) => t.stop());
-      mic = true;
-    } catch {
-      mic = false;
-    }
+    // getUserMedia never settles while a prompt sits unanswered, and an unbounded
+    // await leaves the screen stuck on "requesting" with no way forward. Treating a
+    // long silence as a refusal at least reaches the recovery instructions.
+    const mic = await Promise.race([
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then((stream) => {
+          // This asks for permission; it does not record. Release it at once.
+          stream.getTracks().forEach((t) => t.stop());
+          return true;
+        })
+        .catch(() => false),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 30000)),
+    ]);
 
     setResult({ location, mic });
     setBusy(false);
