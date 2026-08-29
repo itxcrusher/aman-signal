@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     report_id?: string;
     answers?: { field: string; question: string; answer: string }[];
     corrected?: unknown;
+    pin?: { lat?: unknown; lon?: unknown };
   };
   try {
     body = await req.json();
@@ -91,8 +92,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // The citizen may have dragged the pin on the confirmation map. A hand-placed
+  // pin on a street-level map beats a 40m urban GPS fix, and it is applied before
+  // reconciliation because dedup is distance-sensitive: it has to see the better
+  // coordinate, not the one the phone guessed.
+  let lat = row.lat;
+  let lon = row.lon;
+  const pinLat = Number(body.pin?.lat);
+  const pinLon = Number(body.pin?.lon);
+  if (
+    Number.isFinite(pinLat) && Number.isFinite(pinLon) &&
+    Math.abs(pinLat) <= 90 && Math.abs(pinLon) <= 180 &&
+    (pinLat !== row.lat || pinLon !== row.lon)
+  ) {
+    lat = pinLat;
+    lon = pinLon;
+    // The GPS accuracy figure describes the fix, not the correction, so it is
+    // dropped rather than left to imply a precision it no longer measures.
+    updateReport(rid, { lat, lon, accuracy_m: null, pin_adjusted: 1 });
+  }
+
   // Does this report describe an emergency already known to the operators?
-  const decision = await findDuplicate(extraction, row.lat, row.lon);
+  const decision = await findDuplicate(extraction, lat, lon);
   const answerNote = answers.length ? ` answers=${answers.map((a) => a.field).join(",")}` : "";
   const correctedNote = body.corrected !== undefined ? " corrected=yes" : "";
 
@@ -132,7 +153,7 @@ export async function POST(req: NextRequest) {
       `report=${rid} similarity=${decision.candidate.similarity} distance=${decision.candidate.distanceM ?? "n/a"}m method=${decision.candidate.method}`,
     );
   } else {
-    incidentId = createIncident(extraction, row.lat, row.lon);
+    incidentId = createIncident(extraction, lat, lon);
     updateReport(rid, {
       status: "confirmed",
       incident_id: incidentId,

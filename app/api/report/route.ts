@@ -45,6 +45,13 @@ export async function POST(req: NextRequest) {
   const latRaw = form.get("lat") as string | null;
   const lonRaw = form.get("lon") as string | null;
   const accRaw = form.get("accuracy") as string | null;
+  // Identity without an account. The device-scoped id lets someone see their own
+  // reports later; the phone number lets an operator call back, which is the most
+  // useful thing they can do. Neither is required, because a report from someone
+  // who filled nothing in is still a report.
+  const reporterId = (form.get("reporter_id") as string | null)?.trim().slice(0, 64) || null;
+  const reporterName = (form.get("reporter_name") as string | null)?.trim().slice(0, 120) || null;
+  const reporterPhone = (form.get("reporter_phone") as string | null)?.replace(/[^\d+ -]/g, "").trim().slice(0, 20) || null;
   const lat = latRaw ? Number(latRaw) : null;
   const lon = lonRaw ? Number(lonRaw) : null;
   const accuracy = accRaw ? Number(accRaw) : null;
@@ -76,6 +83,9 @@ export async function POST(req: NextRequest) {
     lon: Number.isFinite(lon) ? lon : null,
     accuracy_m: accuracy !== null && Number.isFinite(accuracy) ? accuracy : null,
     location_text: locationText,
+    reporter_id: reporterId,
+    reporter_name: reporterName,
+    reporter_phone: reporterPhone,
   });
 
   const result = await extractReport({ text, audioPath, imagePath, locationText });

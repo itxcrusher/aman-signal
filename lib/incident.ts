@@ -28,7 +28,7 @@ export type IncidentView = {
   peopleClaims: { value: number; sources: number }[];
   conflicts: Conflict[];
   quality: {
-    locationQuality: "gps" | "landmark" | "missing";
+    locationQuality: "pinned" | "gps" | "landmark" | "missing";
     completeness: { present: number; total: number };
     distinctReports: number;
     citizenConfirmed: number;
@@ -110,11 +110,17 @@ export function buildIncidentView(incident: IncidentRow, reports: ReportRow[]): 
   }
 
   const withGps = reports.some((r) => r.lat !== null && r.lon !== null);
-  const locationQuality: IncidentView["quality"]["locationQuality"] = withGps
-    ? "gps"
-    : locations.length > 0
-      ? "landmark"
-      : "missing";
+  // A pin the reporter placed by hand outranks the phone's fix. They were standing
+  // at the place; the handset was estimating from towers and a partial sky, and in
+  // a dense street that estimate is routinely half a block out.
+  const withPin = reports.some((r) => r.pin_adjusted === 1 && r.lat !== null);
+  const locationQuality: IncidentView["quality"]["locationQuality"] = withPin
+    ? "pinned"
+    : withGps
+      ? "gps"
+      : locations.length > 0
+        ? "landmark"
+        : "missing";
 
   // Completeness is measured on the best-populated report, not averaged: one
   // complete report is more useful than three half-complete ones.

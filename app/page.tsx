@@ -3,8 +3,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Extraction } from "@/lib/schema";
 import Onboarding from "./Onboarding";
-
-const ONBOARDED_KEY = "amansignal.onboarded";
+import LocationPin from "./LocationPin";
+import MyReports from "./MyReports";
+import { loadProfile, type Profile } from "@/lib/profile";
 
 type Question = { field: string; ur: string; en: string };
 type Phase = "compose" | "sending" | "review" | "done" | "error";
@@ -65,7 +66,11 @@ export default function CitizenIntake() {
   const [locationDenied, setLocationDenied] = useState(false);
   const askedForLocation = useRef(false);
   // null while unknown, so the intake screen never flashes before onboarding.
-  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [tab, setTab] = useState<"report" | "mine">("report");
+  // A pin the citizen placed by hand on the confirmation map. It overrides the
+  // phone's fix because they are standing at the place and the phone is guessing.
+  const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -141,10 +146,43 @@ export default function CitizenIntake() {
    * and it should already be waiting by the time the report is sent.
    */
   useEffect(() => {
-    const seen = localStorage.getItem(ONBOARDED_KEY) === "1";
-    setOnboarded(seen);
-    if (seen) getLocation();
+    const p = loadProfile();
+    setProfile(p);
+    // Only chase a fix for someone who already granted the permission. Asking here
+    // would raise a prompt on launch, which is the thing setting up at install is
+    // meant to avoid, and a refusal made on launch is sticky.
+    if (p.onboarded && p.permissionsAsked) getLocation();
   }, [getLocation]);
+
+  /**
+   * An explicit request, from someone pressing a button. Unlike the passive
+   * attempt on launch this always tries again, because a person asking for it is
+   * not the same as the app guessing they want it.
+   */
+  const requestLocation = useCallback(() => {
+    askedForLocation.current = false;
+    setLocating(true);
+    return new Promise<boolean>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          setCoords({
+            lat: p.coords.latitude,
+            lon: p.coords.longitude,
+            accuracy: Math.round(p.coords.accuracy),
+          });
+          setLocating(false);
+          setLocationDenied(false);
+          resolve(true);
+        },
+        () => {
+          setLocating(false);
+          setLocationDenied(true);
+          resolve(false);
+        },
+        { enableHighAccuracy: true, timeout: 15000 },
+      );
+    });
+  }, []);
 
   const startRecording = useCallback(async () => {
     try {
@@ -223,6 +261,11 @@ export default function CitizenIntake() {
       fd.set("lon", String(coords.lon));
       fd.set("accuracy", String(coords.accuracy));
     }
+    // Who to call back. Optional throughout: a report from someone who filled in
+    // nothing is still a report, and is never blocked for want of a name.
+    if (profile?.reporterId) fd.set("reporter_id", profile.reporterId);
+    if (profile?.name) fd.set("reporter_name", profile.name);
+    if (profile?.phone) fd.set("reporter_phone", profile.phone);
     try {
       const res = await fetch("/api/report", { method: "POST", body: fd });
       const json = await res.json();
@@ -245,6 +288,9 @@ export default function CitizenIntake() {
     setPhase("sending");
     const payload = {
       report_id: reportId,
+      // Sent only when they actually moved it, so an untouched map never
+      // overwrites a good fix with a coordinate nobody chose.
+      pin: pin ?? undefined,
       answers: questions
         .filter((q) => answers[q.field]?.trim())
         .map((q) => ({ field: q.field, question: q.en, answer: answers[q.field].trim() })),
@@ -265,21 +311,22 @@ export default function CitizenIntake() {
 
   const hasContent = text.trim() !== "" || audio !== null || image !== null;
 
-  if (onboarded === null) {
+  if (profile === null) {
     return <main className="min-h-screen bg-day" aria-busy="true" />;
   }
 
-  if (!onboarded) {
+  if (!profile.onboarded) {
     return (
       <Onboarding
-        onDone={() => {
-          localStorage.setItem(ONBOARDED_KEY, "1");
-          setOnboarded(true);
-          getLocation();
+        onDone={(p) => {
+          setProfile(p);
+          if (p.permissionsAsked) getLocation();
         }}
       />
     );
   }
+
+  const settled = phase === "compose" || phase === "error" || phase === "done";
 
   return (
     <main dir="rtl" className="min-h-screen bg-day text-ink">
@@ -290,7 +337,36 @@ export default function CitizenIntake() {
           <p className="en mt-1 text-sm text-ink-soft">Report an emergency</p>
         </header>
 
-        {phase === "compose" || phase === "error" ? (
+        {/* Reporting and following up are the two things a person does here, and
+            the second is what keeps a report from feeling like it vanished. The
+            switch is hidden mid-report so nobody navigates away from one they have
+            not confirmed yet. */}
+        {settled ? (
+          <nav className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-day-surface p-1 ring-1 ring-day-line">
+            <button
+              type="button"
+              onClick={() => setTab("report")}
+              aria-current={tab === "report"}
+              className={`rounded-xl px-4 py-3 text-center ${tab === "report" ? "bg-brand text-white" : "text-ink-soft"}`}
+            >
+              <span className="urdu-ui block text-base font-semibold">اطلاع دیں</span>
+              <span className="en text-xs opacity-90">Report</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("mine")}
+              aria-current={tab === "mine"}
+              className={`rounded-xl px-4 py-3 text-center ${tab === "mine" ? "bg-brand text-white" : "text-ink-soft"}`}
+            >
+              <span className="urdu-ui block text-base font-semibold">میری اطلاعات</span>
+              <span className="en text-xs opacity-90">My reports</span>
+            </button>
+          </nav>
+        ) : null}
+
+        {settled && tab === "mine" ? <MyReports reporterId={profile.reporterId} /> : null}
+
+        {tab === "report" && (phase === "compose" || phase === "error") ? (
           <div className="space-y-5">
             <section className="rounded-2xl bg-day-surface p-5 shadow-sm ring-1 ring-day-line">
               <label htmlFor="report" className="urdu-ui block text-base font-semibold">
@@ -486,6 +562,16 @@ export default function CitizenIntake() {
               </dl>
             </section>
 
+            <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
+              <LocationPin
+                lat={pin?.lat ?? coords?.lat ?? null}
+                lon={pin?.lon ?? coords?.lon ?? null}
+                accuracy={pin ? null : (coords?.accuracy ?? null)}
+                onChange={(lat, lon) => setPin({ lat, lon })}
+                onUseGps={requestLocation}
+              />
+            </section>
+
             {questions.length ? (
               <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-brand">
                 <h2 className="urdu-ui text-lg font-bold">ایک بات اور</h2>
@@ -521,12 +607,20 @@ export default function CitizenIntake() {
           </div>
         ) : null}
 
-        {phase === "done" ? (
+        {tab === "report" && phase === "done" ? (
           <div className="rounded-2xl bg-day-surface p-8 text-center ring-1 ring-ok">
             <p className="urdu text-xl font-bold text-ok">آپ کی اطلاع موصول ہو گئی ہے</p>
             <p className="en mt-2 text-ink-soft">
               Your report has been received and sent to the relief team.
             </p>
+            <button
+              type="button"
+              onClick={() => setTab("mine")}
+              className="mt-5 rounded-xl bg-brand/10 px-5 py-3 text-brand ring-1 ring-brand"
+            >
+              <span className="urdu-ui block text-base font-semibold">کیا ہوا، دیکھیں</span>
+              <span className="en text-xs">Follow what happens next</span>
+            </button>
           </div>
         ) : null}
       </div>

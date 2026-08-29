@@ -55,6 +55,35 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status)`,
 ];
 
+/**
+ * Additive migrations. SQLite has no "ADD COLUMN IF NOT EXISTS", so every column
+ * added after the first release is declared here and checked against the live
+ * table. Table and column names are internal constants, never user input.
+ */
+const MIGRATIONS: Record<string, Record<string, string>> = {
+  reports: {
+    dedup_json: "TEXT",
+    accuracy_m: "REAL",
+    // Identity without accounts: a device-scoped id lets someone see their own
+    // reports without a login, and a phone number lets an operator call back,
+    // which is the single most useful action available to them.
+    reporter_id: "TEXT",
+    reporter_name: "TEXT",
+    reporter_phone: "TEXT",
+    // Whether the citizen moved the pin off the GPS fix. A hand-placed pin in a
+    // dense street is usually better than a 40m fix, and dedup needs to know.
+    pin_adjusted: "INTEGER",
+  },
+  incidents: {
+    assigned_at: "INTEGER",
+    assigned_by: "TEXT",
+  },
+};
+
+const POST_MIGRATION = [
+  `CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id)`,
+];
+
 let _db: Database.Database | null = null;
 
 export function db(): Database.Database {
@@ -62,13 +91,15 @@ export function db(): Database.Database {
   _db = new Database(path.join(DATA_DIR, "amansignal.db"));
   _db.pragma("journal_mode = WAL");
   for (const s of STATEMENTS) _db.prepare(s).run();
-  const cols = _db.prepare("PRAGMA table_info(reports)").all() as { name: string }[];
-  if (!cols.some((c) => c.name === "dedup_json")) {
-    _db.prepare("ALTER TABLE reports ADD COLUMN dedup_json TEXT").run();
+  for (const [table, columns] of Object.entries(MIGRATIONS)) {
+    const have = new Set(
+      (_db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name),
+    );
+    for (const [name, type] of Object.entries(columns)) {
+      if (!have.has(name)) _db.prepare(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`).run();
+    }
   }
-  if (!cols.some((c) => c.name === "accuracy_m")) {
-    _db.prepare("ALTER TABLE reports ADD COLUMN accuracy_m REAL").run();
-  }
+  for (const s of POST_MIGRATION) _db.prepare(s).run();
   return _db;
 }
 
@@ -86,6 +117,10 @@ export type ReportRow = {
   lon: number | null;
   accuracy_m: number | null;
   location_text: string | null;
+  reporter_id: string | null;
+  reporter_name: string | null;
+  reporter_phone: string | null;
+  pin_adjusted: number | null;
   extraction_json: string | null;
   repairs_json: string | null;
   clarifications_json: string | null;
@@ -104,6 +139,8 @@ export type IncidentRow = {
   lon: number | null;
   summary: string | null;
   assigned_to: string | null;
+  assigned_at: number | null;
+  assigned_by: string | null;
 };
 
 export const id = () =>
@@ -113,10 +150,12 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
   db()
     .prepare(
       `INSERT INTO reports (id, created_at, status, incident_id, raw_text, audio_path,
-        image_path, lat, lon, accuracy_m, location_text, extraction_json, repairs_json,
+        image_path, lat, lon, accuracy_m, location_text, reporter_id, reporter_name,
+        reporter_phone, pin_adjusted, extraction_json, repairs_json,
         clarifications_json, dedup_json, model, latency_ms)
        VALUES (@id, @created_at, @status, @incident_id, @raw_text, @audio_path,
-        @image_path, @lat, @lon, @accuracy_m, @location_text, @extraction_json, @repairs_json,
+        @image_path, @lat, @lon, @accuracy_m, @location_text, @reporter_id, @reporter_name,
+        @reporter_phone, @pin_adjusted, @extraction_json, @repairs_json,
         @clarifications_json, @dedup_json, @model, @latency_ms)`,
     )
     .run({
@@ -129,6 +168,10 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
       lon: null,
       accuracy_m: null,
       location_text: null,
+      reporter_id: null,
+      reporter_name: null,
+      reporter_phone: null,
+      pin_adjusted: null,
       extraction_json: null,
       repairs_json: null,
       clarifications_json: null,
@@ -146,7 +189,7 @@ export function getReport(rid: string): ReportRow | undefined {
 /** Field names are whitelisted against the table to keep interpolation safe. */
 const REPORT_FIELDS = new Set([
   "status", "incident_id", "raw_text", "audio_path", "image_path", "lat", "lon",
-  "accuracy_m", "location_text", "extraction_json", "repairs_json", "provenance_json",
+  "accuracy_m", "location_text", "pin_adjusted", "extraction_json", "repairs_json", "provenance_json",
   "clarifications_json", "dedup_json", "model", "latency_ms",
 ]);
 
@@ -221,10 +264,59 @@ export function setIncidentStatus(
   assignedTo?: string,
 ) {
   if (!INCIDENT_STATUSES.has(status)) throw new Error(`invalid status: ${status}`);
+  const now = Date.now();
   db()
-    .prepare("UPDATE incidents SET status = ?, updated_at = ?, assigned_to = COALESCE(?, assigned_to) WHERE id = ?")
-    .run(status, Date.now(), assignedTo ?? null, iid);
+    .prepare(
+      `UPDATE incidents SET status = ?, updated_at = ?,
+        assigned_to = COALESCE(?, assigned_to),
+        assigned_at = CASE WHEN ? IS NULL THEN assigned_at ELSE ? END,
+        assigned_by = CASE WHEN ? IS NULL THEN assigned_by ELSE ? END
+       WHERE id = ?`,
+    )
+    .run(status, now, assignedTo ?? null, assignedTo ?? null, now, assignedTo ?? null, actor, iid);
   audit(iid, actor, "status_change", status + (assignedTo ? ` -> ${assignedTo}` : ""));
+}
+
+export type MyReportRow = ReportRow & {
+  incident_status: string | null;
+  incident_assigned_to: string | null;
+  incident_type: string | null;
+};
+
+/**
+ * A citizen's own reports. Identity here is a device-scoped id, not an account:
+ * enough to show someone what became of what they sent, without asking them to
+ * remember a password during a flood. It grants no operator access and is never
+ * used for authorisation, only for showing a reporter their own submissions.
+ */
+export function reportsByReporter(reporterId: string): MyReportRow[] {
+  return db()
+    .prepare(
+      `SELECT r.*, i.status AS incident_status, i.assigned_to AS incident_assigned_to,
+              i.incident_type AS incident_type
+         FROM reports r LEFT JOIN incidents i ON i.id = r.incident_id
+        WHERE r.reporter_id = ?
+        ORDER BY r.created_at DESC LIMIT 50`,
+    )
+    .all(reporterId) as MyReportRow[];
+}
+
+/**
+ * Assignment is a human act and is recorded with the name of whoever performed
+ * it. Naming the responding team is what lets a reporter be told something more
+ * useful than "received": it is the difference between a void and an answer.
+ */
+export function assignIncident(iid: string, team: string, actor: string) {
+  const now = Date.now();
+  const res = db()
+    .prepare(
+      `UPDATE incidents SET assigned_to = ?, assigned_at = ?, assigned_by = ?, updated_at = ?,
+        status = CASE WHEN status IN ('new', 'verified') THEN 'assigned' ELSE status END
+       WHERE id = ?`,
+    )
+    .run(team, now, actor, now, iid);
+  if (res.changes === 0) throw new Error("incident not found");
+  audit(iid, actor, "assigned", `team=${team}`);
 }
 
 export function auditFor(incidentId: string) {
