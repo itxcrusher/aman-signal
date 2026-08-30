@@ -5,37 +5,58 @@
    font CDN, which matters on poor connections and in the field. */
 
 @theme {
-  /* Ground: calm slate, not alarm-red. Red is reserved for urgency signals so it
-     retains meaning; ambient red both panics reporters and destroys the signal. */
-  --color-ground: #0b1220;
-  --color-surface: #131c2e;
-  --color-surface-2: #1b2740;
-  --color-line: #2a3550;
+  /* One system, two temperaments. The citizen and the operator share this palette,
+     the logic and the voice, and deliberately not the temperature: one is
+     frightened, outdoors and reading a single thing, the other is trained, indoors
+     and scanning many. A change that makes the two look more alike is a regression.
 
-  /* Citizen surface is light: readable in direct sunlight on a cheap screen. */
-  --color-day: #f7f9fc;
+     The board's ground carries the same green bias as the accent rather than the
+     blue slate it used to, so the two belong to one family. Red is reserved for
+     urgency and appears here only; ambient red both panics reporters and destroys
+     the signal it is supposed to carry. */
+  --color-ground: #0c1512;
+  --color-surface: #101b18;
+  --color-surface-2: #182220;
+  --color-line: #243330;
+
+  /* Citizen surface is light, and this is forced rather than chosen. A phone
+     measured at 300:1 in a dark room falls below 2:1 in direct sunlight because
+     reflection swamps the panel; on a light ground that reflection reads as
+     brightness with the content, on a dark one as glare over it. A dark mode for
+     someone standing in a flood in daylight would be actively harmful. */
+  --color-day: #f4f7f5;
   --color-day-surface: #ffffff;
-  --color-day-line: #d5dde8;
+  --color-day-line: #dce5e0;
 
-  /* Text */
-  --color-ink: #0f172a;
-  --color-ink-soft: #475569;
-  --color-paper: #f8fafc;
-  --color-paper-soft: #94a3b8;
+  /* Text. Contrast targets exceed WCAG AA on purpose: the measured figure is not
+     what a person gets outdoors, so meeting AA in a lab means failing in a flood.
+     Ink on day measures 15.9:1. */
+  --color-ink: #0d1a16;
+  --color-ink-soft: #4b5f58;
+  --color-paper: #dce7e3;
+  --color-paper-soft: #7a8f88;
 
-  /* Semantic. Only these three carry urgency meaning. */
-  --color-critical: #dc2626;
-  --color-warn: #d97706;
-  --color-ok: #047857;
-  --color-info: #2563eb;
+  /* Semantic. Only these carry urgency meaning, and --color-info carries none:
+     it is the MACHINE colour, used in the audit trail alone to mark what the
+     system did by itself. Every human action is green or amber, so a reader can
+     see who decided what without parsing a word of it. */
+  --color-critical: #d9453b;
+  --color-warn: #e5b462;
+  --color-ok: #0b5d53;
+  --color-info: #7fa8ff;
 
-  /* Brand accent: deep teal, calm and distinct from every semantic colour. */
-  --color-brand: #0d7d76;
-  --color-brand-soft: #0f9d94;
+  /* Brand accent: deeper and bluer than flag green, so it reads as still water
+     rather than as a government department. Every existing Pakistani relief
+     identity is green, which makes using green legible rather than derivative,
+     provided the form stays our own. 7.8:1 on the day surface. */
+  --color-brand: #0b5d53;
+  --color-brand-soft: #48c9af;
 
-  --font-latin: var(--font-inter), system-ui, sans-serif;
-  --font-urdu: var(--font-nastaliq), var(--font-naskh), serif;
-  --font-urdu-ui: var(--font-naskh), var(--font-nastaliq), sans-serif;
+  --font-latin: var(--font-lexend), system-ui, sans-serif;
+  --font-urdu: var(--font-nastaliq), serif;
+  --font-urdu-ui: var(--font-nastaliq), serif;
+  --font-ops: var(--font-plex-sans), system-ui, sans-serif;
+  --font-ops-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 :root {
@@ -48,26 +69,44 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Nastaliq: for Urdu PROSE the reader reads as a sentence (the confirmation
-   summary, headings). Measured at 390px: multi-line Nastaliq clips descenders
-   below line-height 2.4, and needs block padding because the glyph box overflows
-   its line box. Never use it for scannable UI labels; that is what Naskh is for. */
+/* Nastaliq everywhere a citizen reads.
+   This reverses what shipped. Both classes used to differ by FACE: Nastaliq for
+   prose, Naskh for labels, decided because multi-line Nastaliq clipped its
+   descenders at 390px. The clipping was real and the remedy was wrong. Line-height
+   fixes clipping; a change of script does not, and it costs something the
+   measurement never showed, because Urdu readers experience Naskh as Arabic. For a
+   product whose premise is meeting people in their own language, rendering that
+   language in the script that feels foreign undercuts the one thing it claims.
+
+   The constraint that forced the substitution was small labels, where Nastaliq
+   genuinely struggles, and crisis-UX research independently says a product used
+   under stress should not have small text at all. At the 18px floor below, the two
+   constraints cancel. Naskh now loads on no citizen path at all, which also
+   removed the largest font family in the build: four weights of Noto Sans Arabic
+   came to 983kB on disk against Nastaliq's 794kB across three.
+
+   The two classes now differ by ROLE rather than face: prose gets more room. */
 .urdu {
   font-family: var(--font-urdu);
   line-height: 2.4;
+  /* The glyph box overflows its line box; without this, descenders clip. */
   padding-block: 0.15em;
   direction: rtl;
   text-align: right;
   font-size: 1.0625em;
 }
 
-/* Naskh: for LABELS and controls. Far more legible when scanned rather than read,
-   and it does not need Nastaliq's vertical space. */
 .urdu-ui {
   font-family: var(--font-urdu-ui);
-  line-height: 1.7;
+  /* 2.3 is the documented floor for Nastaliq. Below roughly 2.0 the descenders of
+     one line collide with the ascenders of the next. */
+  line-height: 2.3;
+  padding-block: 0.1em;
   direction: rtl;
   text-align: right;
+  /* Never below 18px anywhere a citizen reads: this is the size at which Nastaliq
+     stops being a compromise, and the size crisis-UX research asks for anyway. */
+  font-size: max(1.125rem, 1em);
 }
 
 /* Roman Urdu is Latin script: LTR, Latin font, no Nastaliq metrics. */
@@ -91,9 +130,33 @@ body {
   font-family: var(--font-latin);
 }
 
-/* Accessibility floor. The product is used one-handed, in bad light, under stress. */
+/* Accessibility floor. The product is used one-handed, in bad light, under stress,
+   by someone whose hand may be wet and shaking, so this sits above the usual 44px
+   minimum. The board is exempt: it is operated with a mouse, indoors, and 56px
+   rows would cost a dispatcher the density they scan by. */
 button, a, [role="button"], input, select, textarea {
-  min-height: 44px;
+  min-height: 56px;
+}
+
+.ops-surface button,
+.ops-surface a,
+.ops-surface [role="button"],
+.ops-surface input,
+.ops-surface select,
+.ops-surface textarea {
+  min-height: 38px;
+}
+
+/* The operator board's own faces. Applied at the surface so no component has to
+   know, and so the citizen app can never accidentally inherit them. */
+.ops-surface {
+  font-family: var(--font-ops);
+}
+
+.ops-surface .mono,
+.ops-surface .tabular {
+  font-family: var(--font-ops-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 *:focus-visible {

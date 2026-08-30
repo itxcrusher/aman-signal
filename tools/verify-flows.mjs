@@ -58,9 +58,9 @@ let reporterId = null;
   // ---------- 2. Three attachment icons under the text box ----------
   const icons = await page.locator("svg").count();
   log(icons >= 3, "attachment icons rendered under the text area", `${icons} svg`);
-  log(await page.locator('text=Record a voice note').isVisible(), "mic control present");
-  log(await page.locator('text=Add a photo').isVisible(), "photo control present");
-  log(await page.locator('text=Share your location').isVisible(), "location control present");
+  log(await page.getByRole("button", { name: "Voice" }).isVisible(), "mic control present");
+  log(await page.locator('label:has-text("Photo")').isVisible(), "photo control present");
+  log(await page.getByRole("button", { name: "Location" }).isVisible(), "location control present");
   await page.screenshot({ path: "shots/flow-compose.png", fullPage: true });
 
   // ---------- 3. The confirmation screen is actually editable ----------
@@ -162,7 +162,8 @@ console.log("\nOperations dashboard:");
 
   // Switching district must change what this room sees.
   const beforeCount = await page.locator("li[id^='incident-']").count();
-  await page.locator('button:has-text("Change")').click();
+  // Exact: "Change" also matches "Change team" on an assigned incident.
+  await page.getByRole("button", { name: "Change", exact: true }).click();
   await page.waitForTimeout(600);
   await page.locator('input[aria-label="Search districts"]').fill("Gwadar");
   await page.waitForTimeout(400);

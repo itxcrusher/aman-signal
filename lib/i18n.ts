@@ -59,6 +59,12 @@ export type Strings = {
   whatHappened: string;
   composePlaceholder: string;
   recordVoice: string;
+  /** Icon-row labels. Short by necessity: a full sentence under a 110px
+      icon wraps to two lines and makes three tiles different heights. */
+  attachVoice: string;
+  attachPhoto: string;
+  attachLocation: string;
+  stopRecording: string;
   recordingTapToStop: string;
   voiceAttached: string;
   silentMicTitle: string;
@@ -177,6 +183,10 @@ const ur: Strings = {
   whatHappened: "کیا ہوا ہے؟ اردو، رومن اردو یا انگریزی میں لکھیں۔",
   composePlaceholder: "مثال: ہمارے گھر میں پانی آ گیا ہے...",
   recordVoice: "آواز میں بتائیں",
+  attachVoice: "آواز",
+  attachPhoto: "تصویر",
+  attachLocation: "جگہ",
+  stopRecording: "روکیں",
   recordingTapToStop: "ریکارڈنگ جاری ہے، روکنے کے لیے دبائیں",
   voiceAttached: "آواز لگ گئی ہے",
   silentMicTitle: "آپ کی آواز سنائی نہیں دی",
@@ -298,6 +308,10 @@ const en: Strings = {
   whatHappened: "What is happening? Write in Urdu, Roman Urdu or English.",
   composePlaceholder: "For example: water has come into our house...",
   recordVoice: "Record a voice note",
+  attachVoice: "Voice",
+  attachPhoto: "Photo",
+  attachLocation: "Location",
+  stopRecording: "Stop",
   recordingTapToStop: "Recording, tap to stop",
   voiceAttached: "Voice note attached",
   silentMicTitle: "We heard nothing",

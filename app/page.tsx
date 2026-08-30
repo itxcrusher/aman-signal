@@ -7,6 +7,7 @@ import LocationPin from "./LocationPin";
 import MyReports from "./MyReports";
 import { loadProfile, saveProfile, type Profile } from "@/lib/profile";
 import LanguageToggle from "./LanguageToggle";
+import Mark from "./Mark";
 import ReviewCard from "./ReviewCard";
 import { stringsFor, type Lang } from "@/lib/i18n";
 
@@ -355,7 +356,7 @@ export default function CitizenIntake() {
   const attachments = [
     {
       key: "mic",
-      label: t.recordVoice,
+      label: t.attachVoice,
       active: recording,
       done: audio !== null && !recording,
       onClick: recording ? stopRecording : startRecording,
@@ -365,7 +366,7 @@ export default function CitizenIntake() {
     },
     {
       key: "photo",
-      label: t.addPhoto,
+      label: t.attachPhoto,
       active: false,
       done: image !== null,
       icon: (
@@ -374,7 +375,7 @@ export default function CitizenIntake() {
     },
     {
       key: "location",
-      label: t.shareLocation,
+      label: t.attachLocation,
       active: locating,
       done: coords !== null,
       onClick: getLocation,
@@ -399,7 +400,10 @@ export default function CitizenIntake() {
       <div className="mx-auto max-w-xl px-5 py-6">
         <header className="mb-6 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-brand">AmanSignal</h1>
+            <div className="flex items-center gap-2">
+              <Mark className="h-7 w-7 shrink-0 text-brand" />
+              <h1 className="text-2xl font-bold tracking-tight text-brand">AmanSignal</h1>
+            </div>
             <p className={`${t.face} mt-1 text-lg font-semibold`}>{t.headerAction}</p>
           </div>
           <LanguageToggle lang={profile.lang} onChange={setLang} />
@@ -497,7 +501,7 @@ export default function CitizenIntake() {
                         {a.icon}
                       </svg>
                       <span className={`${t.face} text-center text-xs font-medium leading-tight`}>
-                        {a.key === "mic" && recording ? t.recordingTapToStop : a.label}
+                        {a.key === "mic" && recording ? t.stopRecording : a.label}
                       </span>
                     </button>
                   ),

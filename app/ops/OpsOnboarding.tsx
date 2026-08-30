@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { DISTRICTS } from "@/lib/districts";
+import Mark from "../Mark";
 
 export type OpsIdentity = {
   operator: string;
@@ -52,9 +53,10 @@ export default function OpsOnboarding({
   const ready = operator.trim().length > 1 && district !== "";
 
   return (
-    <main className="min-h-screen bg-ground text-paper">
+    <main className="ops-surface min-h-screen bg-ground text-paper">
       <div className="mx-auto max-w-2xl px-6 py-12">
-        <h1 className="text-2xl font-bold tracking-tight text-brand-soft">
+        <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-brand-soft">
+          <Mark className="h-8 w-8 shrink-0" />
           AmanSignal <span className="font-normal text-paper-soft">Operations</span>
         </h1>
         <p className="mt-2 text-sm text-paper-soft">

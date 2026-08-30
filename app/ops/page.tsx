@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import OpsOnboarding, { type OpsIdentity } from "./OpsOnboarding";
+import Mark from "../Mark";
 import { districtName } from "@/lib/districts";
 import dynamic from "next/dynamic";
 import { LABEL, STATUS_FLOW } from "@/lib/incident";
@@ -274,7 +275,7 @@ export default function OpsBoard() {
   const elsewhere = incidents.length - mine.length;
 
   if (identity === undefined) {
-    return <main className="min-h-screen bg-ground" aria-busy="true" />;
+    return <main className="ops-surface min-h-screen bg-ground" aria-busy="true" />;
   }
 
   if (identity === null || editingIdentity) {
@@ -288,11 +289,12 @@ export default function OpsBoard() {
   }
 
   return (
-    <main className="min-h-screen bg-ground text-paper">
+    <main className="ops-surface min-h-screen bg-ground text-paper">
       <header className="border-b border-line px-6 py-4">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-brand-soft">
+            <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-brand-soft">
+              <Mark className="h-6 w-6 shrink-0" />
               AmanSignal <span className="font-normal text-paper-soft">Operations</span>
             </h1>
             <p className="text-xs text-paper-soft">

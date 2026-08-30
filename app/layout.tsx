@@ -1,25 +1,57 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Nastaliq_Urdu, Noto_Sans_Arabic } from "next/font/google";
+import { Lexend, Noto_Nastaliq_Urdu, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
 /**
  * Fonts are self-hosted by next/font rather than pulled from a CDN at runtime:
  * the product is used on poor connections, and a blocked or slow font host must
  * not delay an emergency report.
+ *
+ * Weights are deliberately few. Measured on this build, the four weights of Noto
+ * Sans Arabic came to 983kB on disk, more than the three of Nastaliq at 794kB, and
+ * the citizen app no longer loads it at all. Every weight below earns its place.
  */
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
 
+/**
+ * Urdu, everywhere a citizen reads. Nastaliq is what Urdu readers expect; Naskh
+ * reads to them as Arabic and loses the Urdu identity. Two weights only: regular
+ * for reading and bold for the one emphasis level the screens actually use.
+ */
 const nastaliq = Noto_Nastaliq_Urdu({
   variable: "--font-nastaliq",
   subsets: ["arabic"],
-  weight: ["400", "600", "700"],
+  weight: ["400", "700"],
   display: "swap",
 });
 
-const naskh = Noto_Sans_Arabic({
-  variable: "--font-naskh",
-  subsets: ["arabic"],
-  weight: ["400", "500", "600", "700"],
+/**
+ * Latin on the citizen app. Drawn to improve reading proficiency, which is the
+ * right property for a screen read once, under stress, possibly by someone who
+ * reads little. Also carries Roman Urdu, which is Latin script.
+ */
+const lexend = Lexend({
+  variable: "--font-lexend",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+/**
+ * The operator board: dense, trained, English-reading, scanned rather than read.
+ * Loaded on the same document as the citizen app, so both stay modest.
+ */
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  display: "swap",
+});
+
+/** Every figure that must line up: similarity scores, distances, the audit trail. */
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400"],
   display: "swap",
 });
 
@@ -31,14 +63,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0d7d76",
+  themeColor: "#0B5D53",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${nastaliq.variable} ${naskh.variable} h-full antialiased`}
+      className={`${lexend.variable} ${nastaliq.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
