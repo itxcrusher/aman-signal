@@ -10,6 +10,27 @@ const nextConfig: NextConfig = {
   /** better-sqlite3 is a native module and must not be bundled. */
   serverExternalPackages: ["better-sqlite3"],
 
+  /**
+   * Private-network origins allowed to load the dev server's own assets.
+   *
+   * Without this the dev server answers 403 to every request for
+   * /_next/static/chunks/* that arrives from anything but localhost, React never
+   * hydrates, and the page renders blank with no error visible on the device.
+   * Testing on a real phone over the LAN is the only way to check how Nastaliq
+   * actually renders on the hardware this product is built for, so that path has
+   * to work.
+   *
+   * Dev only: Next ignores this in production, and these are private address
+   * space that cannot be reached from the internet. The list is hostnames with
+   * optional wildcards, not CIDR: CIDR notation is silently ignored and the
+   * requests keep 403ing, which is exactly as confusing as it sounds.
+   */
+  allowedDevOrigins: [
+    "192.168.*.*",
+    "10.*.*.*",
+    "172.16.*.*",
+  ],
+
   async headers() {
     return [
       {
