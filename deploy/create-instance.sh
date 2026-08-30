@@ -187,7 +187,11 @@ if [[ -n "$EXISTING" ]]; then
 else
   echo "==> Launching instance"
   # PostPaid (pay-as-you-go) so it can be released the day after the event.
-  INSTANCE_ID="$(ali ecs RunInstances \
+  #
+  # The response is captured before parsing. Piping RunInstances straight into a
+  # JSON parser turns any API refusal into a JSONDecodeError traceback, which
+  # buries the one line that says what actually went wrong.
+  RUN_OUT="$(ali ecs RunInstances \
     --ImageId "$IMAGE_ID" \
     --InstanceType "$INSTANCE_TYPE" \
     --SecurityGroupId "$SG_ID" \
@@ -200,8 +204,43 @@ else
     --InternetMaxBandwidthOut "$BANDWIDTH_MBPS" \
     --SystemDisk.Category cloud_essd \
     --SystemDisk.Size "$DISK_GB" \
-    --Amount 1 \
-    | python -c "import json,sys; print(json.load(sys.stdin)['InstanceIdSets']['InstanceIdSet'][0])")"
+    --Amount 1 2>&1)" || true
+
+  INSTANCE_ID="$(printf '%s' "$RUN_OUT" | python -c "
+import json,sys
+try:
+    print(json.load(sys.stdin)['InstanceIdSets']['InstanceIdSet'][0])
+except Exception:
+    print('')" 2>/dev/null)"
+
+  if [[ -z "$INSTANCE_ID" ]]; then
+    echo >&2
+    echo "    Launch refused. The API said:" >&2
+    printf '%s\n' "$RUN_OUT" | sed 's/^/      /' >&2
+    if printf '%s' "$RUN_OUT" | grep -q "RiskControl"; then
+      BALANCE="$(ali bssopenapi QueryAccountBalance --RegionId "$REGION" 2>/dev/null | python -c "
+import json,sys
+try:
+    d = json.load(sys.stdin)['Data']
+    print('available ' + d['AvailableAmount'] + ' ' + d['Currency'] + ', credit ' + d['CreditAmount'])
+except Exception:
+    print('could not be read')" 2>/dev/null)"
+      cat >&2 <<'HINT'
+
+    Forbidden.RiskControl on a pay-as-you-go launch almost always means the
+    account has no funding source, rather than anything being wrong with the
+    request: every resource above was created fine by the same credential.
+
+    Identity verification is a SEPARATE gate. Passing it does not lift this one.
+
+HINT
+      echo "    Account balance: $BALANCE" >&2
+      echo >&2
+      echo "    Add a payment method or apply credits, then re-run. This script is" >&2
+      echo "    idempotent and will create only the instance, which is what is missing." >&2
+    fi
+    exit 1
+  fi
   echo "    $INSTANCE_ID"
 fi
 
