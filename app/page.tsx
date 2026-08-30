@@ -577,7 +577,6 @@ export default function CitizenIntake() {
                 address={address}
                 onAddressChange={setAddress}
                 t={t}
-                lang={profile.lang}
               />
             </section>
 

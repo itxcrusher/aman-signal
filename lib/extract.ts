@@ -245,24 +245,11 @@ export function clarificationQuestions(
   const qs: { field: string; ur: string; en: string }[] = [];
   if (e.incident_type === "other" && e.urgency_indicators.length === 0) return qs;
 
-  if (!hasUsableLocation(e)) {
-    // With coordinates already captured, asking "where are you" wastes the one or
-    // two questions available and reads as though the app ignored the location it
-    // just took. Coordinates reach the street; a landmark reaches the door.
-    qs.push(
-      opts.hasCoordinates
-        ? {
-            field: "location",
-            ur: "آپ کے قریب کون سی نمایاں چیز ہے؟ جیسے مسجد، دکان یا اسکول، تاکہ ٹیم آپ تک پہنچ سکے۔",
-            en: "What is the nearest landmark to you, such as a mosque, shop or school, so the team can reach you?",
-          }
-        : {
-            field: "location",
-            ur: "آپ اس وقت کہاں ہیں؟ کوئی قریبی نشانی بتائیں، جیسے مسجد، پل یا اسکول۔",
-            en: "Where are you right now? Name a nearby landmark, such as a mosque, bridge or school.",
-          },
-    );
-  }
+  // Location is deliberately NOT asked here. The confirmation screen carries a
+  // dedicated address field directly above these questions, so a landmark
+  // question underneath it asks twice for the same thing and reads as though the
+  // answer just given was not read. The two questions available are worth more
+  // spent on what nothing else collects.
   if (e.people_affected === null && e.urgency_indicators.includes("trapped_people")) {
     qs.push({
       field: "people_affected",

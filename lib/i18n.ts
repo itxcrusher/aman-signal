@@ -120,6 +120,13 @@ export type Strings = {
   addressHint: string;
   addressSaved: string;
   addressOnly: string;
+  findOnMap: string;
+  searchingMap: string;
+  geocodeNone: string;
+  geocodePick: string;
+  geocodeWarn: string;
+  orPlaceOnMap: string;
+  pinFromAddress: string;
 
   myReportsEmpty: string;
   myReportsEmptyBody: string;
@@ -250,6 +257,13 @@ const ur: Strings = {
   addressHint: "محلہ، گلی، اور قریبی نشانی جیسے مسجد یا اسکول",
   addressSaved: "پتہ لکھا جا چکا ہے",
   addressOnly: "پتہ لکھا ہے، نقشے پر نشان نہیں",
+  findOnMap: "نقشے پر تلاش کریں",
+  searchingMap: "تلاش ہو رہی ہے...",
+  geocodeNone: "یہ پتہ نقشے پر نہیں ملا۔ فکر نہ کریں، آپ کا لکھا ہوا پتہ پھر بھی ٹیم تک پہنچے گا۔",
+  geocodePick: "کیا ان میں سے کوئی درست ہے؟ دبا کر نشان لگائیں۔",
+  geocodeWarn: "خودکار تلاش غلط بھی ہو سکتی ہے۔ نشان لگانے سے پہلے نقشے پر دیکھ لیں۔",
+  orPlaceOnMap: "یا نقشے پر خود نشان لگائیں",
+  pinFromAddress: "پتے سے نشان لگایا گیا",
 
   myReportsEmpty: "ابھی تک آپ نے کوئی اطلاع نہیں بھیجی",
   myReportsEmptyBody:
@@ -382,6 +396,13 @@ const en: Strings = {
   addressHint: "Area, street, and a nearby landmark such as a mosque or school",
   addressSaved: "Address written",
   addressOnly: "Address given, no map pin",
+  findOnMap: "Find on map",
+  searchingMap: "Searching...",
+  geocodeNone: "That address was not found on the map. Your written address still reaches the team.",
+  geocodePick: "Is one of these right? Tap to place the pin.",
+  geocodeWarn: "Automatic search can be wrong. Check the map before accepting.",
+  orPlaceOnMap: "Or place the pin on the map yourself",
+  pinFromAddress: "Pin placed from your address",
 
   myReportsEmpty: "You have not sent any reports yet",
   myReportsEmptyBody:
