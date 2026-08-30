@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     answers?: { field: string; question: string; answer: string }[];
     corrected?: unknown;
     pin?: { lat?: unknown; lon?: unknown };
+    address?: string;
   };
   try {
     body = await req.json();
@@ -90,6 +91,21 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+  }
+
+  // A written address, which for many reporters is the only location they can
+  // give: geolocation is unavailable on an insecure origin and denied by plenty
+  // of people who grant nothing at install. It is stored as the report's own
+  // location_text and added to the places the extraction mentions, so it reaches
+  // the operator's board as something a dispatcher can act on rather than sitting
+  // in a field nothing reads.
+  const address = typeof body.address === "string" ? body.address.trim().slice(0, 500) : "";
+  if (address) {
+    updateReport(rid, { location_text: address });
+    if (!extraction.locations_mentioned.includes(address)) {
+      extraction.locations_mentioned = [...extraction.locations_mentioned, address];
+    }
+    extraction.missing_information = pruneMissing(extraction.missing_information, "location");
   }
 
   // The citizen may have dragged the pin on the confirmation map. A hand-placed

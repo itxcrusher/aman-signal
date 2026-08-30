@@ -110,6 +110,16 @@ export type Strings = {
   noLocationYet: string;
   useMyLocation: string;
   locating: string;
+  /* Written location, for anyone whose GPS is unavailable, denied, or simply
+     wrong. The map alone is not enough: someone who cannot find their own street
+     on an unfamiliar map has no way to say where they are at all. */
+  findYourArea: string;
+  areaPlaceholder: string;
+  noAreaMatch: string;
+  addressLabel: string;
+  addressHint: string;
+  addressSaved: string;
+  addressOnly: string;
 
   myReportsEmpty: string;
   myReportsEmptyBody: string;
@@ -233,6 +243,13 @@ const ur: Strings = {
   noLocationYet: "ابھی کوئی جگہ نہیں لگی",
   useMyLocation: "میری جگہ لے لیں",
   locating: "تلاش جاری ہے...",
+  findYourArea: "اپنا شہر یا ضلع تلاش کریں",
+  areaPlaceholder: "مثال: ٹوبہ ٹیک سنگھ",
+  noAreaMatch: "کوئی شہر نہیں ملا",
+  addressLabel: "اپنا پتہ لکھیں",
+  addressHint: "محلہ، گلی، اور قریبی نشانی جیسے مسجد یا اسکول",
+  addressSaved: "پتہ لکھا جا چکا ہے",
+  addressOnly: "پتہ لکھا ہے، نقشے پر نشان نہیں",
 
   myReportsEmpty: "ابھی تک آپ نے کوئی اطلاع نہیں بھیجی",
   myReportsEmptyBody:
@@ -358,6 +375,13 @@ const en: Strings = {
   noLocationYet: "No location set yet",
   useMyLocation: "Use my location",
   locating: "Locating...",
+  findYourArea: "Find your city or district",
+  areaPlaceholder: "e.g. Toba Tek Singh",
+  noAreaMatch: "No city found",
+  addressLabel: "Write your address",
+  addressHint: "Area, street, and a nearby landmark such as a mosque or school",
+  addressSaved: "Address written",
+  addressOnly: "Address given, no map pin",
 
   myReportsEmpty: "You have not sent any reports yet",
   myReportsEmptyBody:

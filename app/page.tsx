@@ -66,6 +66,9 @@ export default function CitizenIntake() {
   // A pin the citizen placed by hand on the confirmation map. It overrides the
   // phone's fix because they are standing at the place and the phone is guessing.
   const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
+  // A written address. The only location available to someone whose browser
+  // refuses geolocation, which on a plain-http origin is every phone.
+  const [address, setAddress] = useState("");
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -286,6 +289,7 @@ export default function CitizenIntake() {
       // Sent only when they actually moved it, so an untouched map never
       // overwrites a good fix with a coordinate nobody chose.
       pin: pin ?? undefined,
+      address: address.trim() || undefined,
       answers: questions
         .filter((q) => answers[q.field]?.trim())
         .map((q) => ({ field: q.field, question: q.en, answer: answers[q.field].trim() })),
@@ -315,6 +319,7 @@ export default function CitizenIntake() {
     setAnswers({});
     setReportId(null);
     setPin(null);
+    setAddress("");
     setError(null);
     setSilentMic(false);
     setTab("report");
@@ -384,6 +389,10 @@ export default function CitizenIntake() {
       ),
     },
   ];
+
+  const visibleQuestions = address.trim()
+    ? questions.filter((q) => q.field !== "location")
+    : questions;
 
   const locationStatus = coords
     ? coords.accuracy > 0
@@ -565,15 +574,21 @@ export default function CitizenIntake() {
                 accuracy={pin ? null : (coords?.accuracy ?? null)}
                 onChange={(lat, lon) => setPin({ lat, lon })}
                 onUseGps={requestLocation}
+                address={address}
+                onAddressChange={setAddress}
                 t={t}
+                lang={profile.lang}
               />
             </section>
 
-            {questions.length ? (
+            {/* A location question asked directly under the address they just
+                wrote reads as not having been listened to. The question was
+                chosen before the address existed, so it is dropped once it does. */}
+            {visibleQuestions.length ? (
               <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-brand">
                 <h2 className={`${t.face} text-lg font-bold`}>{t.oneMoreThing}</h2>
                 <p className={`${t.face} mb-4 text-sm text-ink-soft`}>{t.helpsTeam}</p>
-                {questions.map((q) => (
+                {visibleQuestions.map((q) => (
                   <div key={q.field} className="mb-4">
                     <label htmlFor={`q-${q.field}`} className={`${t.face} block text-base font-semibold`}>
                       {profile!.lang === "ur" ? q.ur : q.en}
