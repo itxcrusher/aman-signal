@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DISTRICTS, districtName } from "@/lib/districts";
+import { DISTRICTS, districtName, provinceName } from "@/lib/districts";
 import type { OpsStrings } from "@/lib/i18n-ops";
 import type { Lang } from "@/lib/i18n";
 
@@ -42,7 +42,8 @@ export default function DistrictSelect({
       (d) =>
         d.name.toLowerCase().includes(q) ||
         d.nameUrdu.includes(query.trim()) ||
-        d.province.toLowerCase().includes(q),
+        d.province.toLowerCase().includes(q) ||
+        provinceName(d.province, true).includes(query.trim()),
     );
   }, [query]);
 
@@ -104,9 +105,10 @@ export default function DistrictSelect({
         <span className={selected ? "text-paper" : "text-paper-soft"}>
           {selected ? (
             <>
-              {selected.name}
-              <span className="urdu-ui ms-2 text-paper-soft">{selected.nameUrdu}</span>
-              <span className="ms-2 text-xs text-paper-soft">{selected.province}</span>
+              <span className={t.face}>{lang === "ur" ? selected.nameUrdu : selected.name}</span>
+              <span className={`${t.face} ms-2 text-xs text-paper-soft`}>
+                {provinceName(selected.province, lang === "ur")}
+              </span>
             </>
           ) : (
             t.searchDistricts
@@ -135,8 +137,8 @@ export default function DistrictSelect({
             ) : null}
             {grouped.map(([province, list]) => (
               <div key={province}>
-                <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-paper-soft">
-                  {province}
+                <p className={`${t.face} px-3 pb-1 pt-2 text-xs font-semibold tracking-wide text-paper-soft`}>
+                  {provinceName(province, lang === "ur")}
                 </p>
                 {list.map((d) => {
                   const idx = matches.indexOf(d);
@@ -156,8 +158,7 @@ export default function DistrictSelect({
                             : "text-paper-soft"
                       }`}
                     >
-                      <span>{d.name}</span>
-                      <span className="urdu-ui opacity-80">{d.nameUrdu}</span>
+                      <span className={t.face}>{lang === "ur" ? d.nameUrdu : d.name}</span>
                     </button>
                   );
                 })}

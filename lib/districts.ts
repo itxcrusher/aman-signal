@@ -96,6 +96,25 @@ export const DISTRICTS: District[] = [
   { id: "skardu", name: "Skardu", nameUrdu: "سکردو", province: "Gilgit-Baltistan", lat: 35.2971, lon: 75.6333 },
 ];
 
+/**
+ * Province names in Urdu. Kept as a lookup rather than a field on every district
+ * because a province name repeats across dozens of rows and only ever varies by
+ * language, not by district.
+ */
+export const PROVINCE_URDU: Record<string, string> = {
+  Sindh: "سندھ",
+  Punjab: "پنجاب",
+  Islamabad: "اسلام آباد",
+  "Khyber Pakhtunkhwa": "خیبر پختونخوا",
+  Balochistan: "بلوچستان",
+  AJK: "آزاد کشمیر",
+  "Gilgit-Baltistan": "گلگت بلتستان",
+};
+
+export function provinceName(province: string, urdu = false): string {
+  return urdu ? (PROVINCE_URDU[province] ?? province) : province;
+}
+
 export const DISTRICTS_BY_ID: Record<string, District> = Object.fromEntries(
   DISTRICTS.map((d) => [d.id, d]),
 );

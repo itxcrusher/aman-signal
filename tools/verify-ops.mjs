@@ -58,9 +58,45 @@ console.log("\nDistrict picker:");
   const filtered = await p.getByRole("option").count();
   log(filtered > 0 && filtered < 5, "typing filters it", `${filtered} match "toba"`);
 
+  // One language, not two. The data carries an English and an Urdu name for
+  // every district, and rendering both was exactly the stacking the language
+  // work existed to remove.
+  const enOpts = (await p.getByRole("option").allInnerTexts()).join(" ");
+  log(!/[؀-ۿ]/.test(enOpts), "English mode shows no Urdu names",
+      (enOpts.match(/[؀-ۿ]+/) ?? ["none"])[0]);
+  const enHeads = (await p.locator('[role="listbox"] p').allInnerTexts()).join(" ");
+  log(!/[؀-ۿ]/.test(enHeads), "and English province headings");
+
   await p.getByRole("option", { name: /Toba Tek Singh/ }).first().click();
   await p.waitForTimeout(300);
   log((await p.getByRole("option").count()) === 0, "choosing closes the list");
+
+  // Now the same list in Urdu.
+  await p.getByRole("button", { name: "اردو" }).first().click();
+  await p.waitForTimeout(500);
+  await p.locator('button[aria-haspopup="listbox"]').click();
+  await p.waitForTimeout(400);
+  const urOpts = (await p.getByRole("option").allInnerTexts()).join(" ");
+  log(!/[A-Za-z]{4,}/.test(urOpts), "Urdu mode shows no English names",
+      (urOpts.match(/[A-Za-z]{4,}/) ?? ["none"])[0]);
+  const urHeads = (await p.locator('[role="listbox"] p').allInnerTexts()).join(" ");
+  log(!/[A-Za-z]{4,}/.test(urHeads), "and Urdu province headings");
+
+  // Typing English still finds it, because matching is not display.
+  await p.locator('input[aria-label^="Search districts"], input[aria-label^="ضلع"]').first().fill("toba");
+  await p.waitForTimeout(400);
+  log((await p.getByRole("option").count()) > 0, "an English query still matches in Urdu mode");
+
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(200);
+  await p.getByRole("button", { name: "English" }).first().click();
+  await p.waitForTimeout(500);
+  await p.locator('button[aria-haspopup="listbox"]').click();
+  await p.waitForTimeout(300);
+  await p.locator('input[aria-label^="Search districts"]').fill("toba");
+  await p.waitForTimeout(400);
+  await p.getByRole("option", { name: /Toba Tek Singh/ }).first().click();
+  await p.waitForTimeout(300);
 
   await p.locator("#op-name").fill("Ops Test");
   await p.getByRole("button", { name: "Open the board" }).click();
