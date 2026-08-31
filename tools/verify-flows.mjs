@@ -1,6 +1,11 @@
+import { authoriseOpsRequests, opsCookieFor } from "./ops-session.mjs";
+
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
+
+// The board is behind the control-room passphrase, so the suite holds it too.
+const OPS_COOKIE = await authoriseOpsRequests(BASE);
 const RUN = Math.random().toString(36).slice(2, 7);
 const out = [];
 const log = (ok, msg, extra = "") => {
@@ -151,6 +156,7 @@ let reporterId = null;
 console.log("\nOperations dashboard:");
 {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addCookies(await opsCookieFor(BASE, OPS_COOKIE));
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("    PAGE ERROR:", e.message));
   await page.goto(`${BASE}/ops`, { waitUntil: "networkidle", timeout: 120000 });

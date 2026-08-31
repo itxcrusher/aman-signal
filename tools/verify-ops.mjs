@@ -1,3 +1,5 @@
+import { authoriseOpsRequests, opsCookieFor } from "./ops-session.mjs";
+
 import { chromium } from "playwright";
 
 /**
@@ -12,6 +14,9 @@ import { chromium } from "playwright";
  */
 
 const B = process.env.BASE ?? "http://localhost:3000";
+
+// The board is behind the control-room passphrase, so the suite holds it too.
+const OPS_COOKIE = await authoriseOpsRequests(B);
 const out = [];
 const log = (ok, m, x = "") => {
   out.push(ok);
@@ -20,6 +25,7 @@ const log = (ok, m, x = "") => {
 
 const b = await chromium.launch();
 const ctx = await b.newContext({ viewport: { width: 1440, height: 950 } });
+await ctx.addCookies(await opsCookieFor(B, OPS_COOKIE));
 const p = await ctx.newPage();
 p.on("pageerror", (e) => console.log("  PAGE ERROR:", e.message.slice(0, 100)));
 

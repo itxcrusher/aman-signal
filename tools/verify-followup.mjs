@@ -1,3 +1,5 @@
+import { authoriseOpsRequests } from "./ops-session.mjs";
+
 import fs from "node:fs";
 
 /**
@@ -17,6 +19,9 @@ import fs from "node:fs";
  */
 
 const B = process.env.BASE ?? "http://localhost:3000";
+
+// The operator endpoints are behind the control-room passphrase.
+await authoriseOpsRequests(B);
 const RID = "followup-test-" + Math.random().toString(36).slice(2, 10);
 const NONCE = Math.random().toString(36).slice(2, 7);
 const out = [];

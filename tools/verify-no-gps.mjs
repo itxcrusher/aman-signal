@@ -1,3 +1,5 @@
+import { authoriseOpsRequests } from "./ops-session.mjs";
+
 import { chromium } from "playwright";
 
 /**
@@ -7,6 +9,9 @@ import { chromium } from "playwright";
  */
 
 const B = process.env.BASE ?? "http://localhost:3000";
+
+// The operator endpoints are behind the control-room passphrase.
+await authoriseOpsRequests(B);
 const RUN = Math.random().toString(36).slice(2, 7);
 const out = [];
 const log = (ok, m, x = "") => {
