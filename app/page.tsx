@@ -3,12 +3,21 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Extraction } from "@/lib/schema";
 import Onboarding from "./Onboarding";
-import LocationPin from "./LocationPin";
+import dynamic from "next/dynamic";
 import MyReports from "./MyReports";
 import { loadProfile, saveProfile, type Profile } from "@/lib/profile";
 import LanguageToggle from "./LanguageToggle";
 import Mark from "./Mark";
-import ReviewCard from "./ReviewCard";
+/**
+ * The confirmation screen's two heaviest pieces, kept off the first paint.
+ *
+ * Neither can be reached without first writing a report and waiting several
+ * seconds for the model, so loading them up front spends a frightened person's
+ * bandwidth on a screen they may never see. LocationPin also pulls Leaflet,
+ * which is the single largest dependency in the project.
+ */
+const ReviewCard = dynamic(() => import("./ReviewCard"), { ssr: false });
+const LocationPin = dynamic(() => import("./LocationPin"), { ssr: false });
 import { stringsFor, type Lang } from "@/lib/i18n";
 import { normaliseImage } from "@/lib/image";
 

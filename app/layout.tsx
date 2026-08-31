@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Lexend, Noto_Nastaliq_Urdu, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Lexend, Noto_Nastaliq_Urdu } from "next/font/google";
 import "./globals.css";
 
 /**
@@ -36,25 +36,6 @@ const lexend = Lexend({
   display: "swap",
 });
 
-/**
- * The operator board: dense, trained, English-reading, scanned rather than read.
- * Loaded on the same document as the citizen app, so both stay modest.
- */
-const plexSans = IBM_Plex_Sans({
-  variable: "--font-plex-sans",
-  subsets: ["latin"],
-  weight: ["400", "600"],
-  display: "swap",
-});
-
-/** Every figure that must line up: similarity scores, distances, the audit trail. */
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
-  subsets: ["latin"],
-  weight: ["400"],
-  display: "swap",
-});
-
 export const metadata: Metadata = {
   title: "AmanSignal",
   description: "Urdu-first incident intelligence for disaster response",
@@ -70,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${lexend.variable} ${nastaliq.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${lexend.variable} ${nastaliq.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
