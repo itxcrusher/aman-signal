@@ -12,7 +12,16 @@
     "evaluate": "node tools/evaluate.mjs --with-dedup",
     "reset": "node tools/reset-data.mjs",
     "seed:resolved": "node tools/seed-demo.mjs --reset --resolve",
-    "e2e": "node tools/e2e.mjs"
+    "e2e": "node tools/e2e.mjs",
+    "verify:flows": "node tools/verify-flows.mjs",
+    "verify:ops": "node tools/verify-ops.mjs",
+    "verify:followup": "node tools/verify-followup.mjs",
+    "verify:no-gps": "node tools/verify-no-gps.mjs",
+    "verify:photo": "node tools/verify-photo.mjs",
+    "verify:offline": "node tools/verify-offline.mjs",
+    "verify:triage": "node tools/verify-triage.mjs",
+    "verify:auth": "node tools/verify-auth.mjs",
+    "verify": "npm run verify:flows && npm run verify:ops && npm run verify:followup && npm run verify:no-gps && npm run verify:photo && npm run verify:offline && npm run verify:triage && npm run verify:auth"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

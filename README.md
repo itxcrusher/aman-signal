@@ -32,8 +32,11 @@ The design principles are strict:
 - **Nothing is invented.** Fields absent from a report are recorded as missing, and the system asks the citizen for at most two operationally critical gaps (location first) before accepting the report.
 - **Conflicts are preserved, not resolved by the machine.** Two reports disagreeing about road access surface as "road access disputed, 2 sources."
 - **Duplicates are linked, never destructively merged**, and report counts are never summed into casualty totals.
-- **Urgency is explained, not scored.** Dispatchers see the actual indicators (trapped people, medical need, vulnerable people, blocked access) and per-dimension data quality, not an opaque percentage.
+- **Urgency is explained, not scored.** Dispatchers see the actual indicators (trapped people, medical need, vulnerable people, blocked access) and per-dimension data quality, not an opaque percentage. The board is ordered by how many such indicators are present and how many reports mention them, which is a scanning aid and is labelled as one on screen: no number is shown, none is derived from a model judgement, and it decides nothing.
 - **The AI never dispatches.** It highlights urgency indicators and supports human prioritisation; every status transition is made by a person and audited.
+- **A report the model cannot read still reaches a person.** When extraction fails, the recording and photo are kept and the report is queued for manual reading rather than dropped; an operator listens, writes down what it says, and the incident is recorded as their reading, not the machine's.
+- **A report composed with no network is kept and sent later.** It is held on the device, survives the app closing, and carries an identifier that lets a repeated send be recognised as the same report, so a lost response costs neither a duplicate incident nor a lost one. Reports sent this way are marked on the board as never having been confirmed by the reporter.
+- **The operator board is access-controlled.** It carries reporters' names, phone numbers, photographs and voice recordings, so reading it requires a control-room passphrase. Reporting an emergency never does.
 
 ## Measured, not assumed
 
@@ -59,7 +62,7 @@ Remaining error is mostly orthographic; the citizen-facing confirmation step ("W
 
 ## Stack
 
-Qwen3.5-Omni via Alibaba Cloud Model Studio (OpenAI-compatible API) for speech, image and text understanding; text embeddings for duplicate candidates; relational store for reports, incidents and audit history; object storage for media; a mobile-first citizen PWA and a dispatcher dashboard. Model processing runs behind an asynchronous job pipeline so intake never blocks on inference. Flood response is the first scenario; the intake is adapter-shaped so the same engine can later ingest WhatsApp, SMS or hotline transcripts and extend to other disaster types.
+Qwen3.5-Omni via Alibaba Cloud Model Studio (OpenAI-compatible API) for speech, image and text understanding; text embeddings for duplicate candidates; relational store for reports, incidents and audit history; object storage for media; a mobile-first citizen PWA and a dispatcher dashboard. Intake waits on inference, which takes 6 to 13 seconds for audio, and the reporter is shown that wait rather than a spinner that implies otherwise. What protects the report is not asynchrony but ordering: the submission and its media are written to disk before the model is called, so a failed or slow extraction can never cost the evidence, and a report the model cannot read is queued for a person to read instead. Flood response is the first scenario; the intake is adapter-shaped so the same engine can later ingest WhatsApp, SMS or hotline transcripts and extend to other disaster types.
 
 Deployment, configuration and operating notes: [docs/deployment.md](docs/deployment.md).
 
@@ -67,7 +70,8 @@ Deployment, configuration and operating notes: [docs/deployment.md](docs/deploym
 
 ```bash
 npm install
-# put DASHSCOPE_API_KEY=sk-... in .env (see .env.example)
+# put DASHSCOPE_API_KEY=sk-... and OPS_PASSPHRASE=... in .env (see .env.example)
+# without OPS_PASSPHRASE the operator board refuses everybody, by design
 npm run dev
 
 npm run seed        # build the demo scenario through the live API
