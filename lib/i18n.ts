@@ -80,6 +80,14 @@ export type Strings = {
 
   understanding: string;
   understandingHint: string;
+  /* Failures, said in terms of what the person can do next. The upstream text is
+     never shown: "InternalError.Algo.InvalidParameter" helps nobody. */
+  errorPhoto: string;
+  errorService: string;
+  errorNetwork: string;
+  errorGeneric: string;
+  photoUnreadable: string;
+  photoConverted: string;
 
   weUnderstood: string;
   correctIt: string;
@@ -116,6 +124,7 @@ export type Strings = {
   findYourArea: string;
   areaPlaceholder: string;
   noAreaMatch: string;
+  placeIntro: string;
   addressLabel: string;
   addressHint: string;
   addressSaved: string;
@@ -220,6 +229,12 @@ const ur: Strings = {
 
   understanding: "آپ کی اطلاع پڑھی جا رہی ہے...",
   understandingHint: "اس میں چند سیکنڈ لگتے ہیں۔",
+  errorPhoto: "یہ تصویر پڑھی نہیں جا سکی۔ تصویر ہٹا کر دوبارہ بھیجیں، یا کیمرے سے نئی تصویر لیں۔ آپ کی باقی اطلاع محفوظ ہے۔",
+  errorService: "ابھی سروس جواب نہیں دے رہی۔ آپ کی اطلاع محفوظ ہے، دوبارہ کوشش کریں۔",
+  errorNetwork: "انٹرنیٹ نہیں مل رہا۔ کنکشن دیکھ کر دوبارہ بھیجیں۔",
+  errorGeneric: "اطلاع بھیجنے میں مسئلہ ہوا۔ دوبارہ کوشش کریں۔",
+  photoUnreadable: "تصویر پڑھی نہیں جا سکی، اس لیے شامل نہیں کی گئی۔ آپ کی باقی اطلاع بھیج دی گئی ہے۔",
+  photoConverted: "تصویر تیار کر لی گئی ہے",
 
   weUnderstood: "ہم نے یہ سمجھا",
   correctIt: "اگر کچھ غلط ہے تو یہیں درست کر لیں۔",
@@ -253,6 +268,7 @@ const ur: Strings = {
   findYourArea: "اپنا شہر یا ضلع تلاش کریں",
   areaPlaceholder: "مثال: ٹوبہ ٹیک سنگھ",
   noAreaMatch: "کوئی شہر نہیں ملا",
+  placeIntro: "ٹیم کو آپ تک پہنچنے کے لیے یہ ضروری ہے۔",
   addressLabel: "اپنا پتہ لکھیں",
   addressHint: "محلہ، گلی، اور قریبی نشانی جیسے مسجد یا اسکول",
   addressSaved: "پتہ لکھا جا چکا ہے",
@@ -359,6 +375,12 @@ const en: Strings = {
 
   understanding: "Reading your report...",
   understandingHint: "This takes a few seconds.",
+  errorPhoto: "That photo could not be read. Remove it and send again, or take a new one with the camera. The rest of your report is safe.",
+  errorService: "The service is not responding right now. Your report is saved. Please try again.",
+  errorNetwork: "No internet connection. Check it and send again.",
+  errorGeneric: "Something went wrong sending your report. Please try again.",
+  photoUnreadable: "The photo could not be read, so it was left out. The rest of your report was sent.",
+  photoConverted: "Photo ready",
 
   weUnderstood: "This is what we understood",
   correctIt: "Correct anything that is wrong, right here.",
@@ -392,6 +414,7 @@ const en: Strings = {
   findYourArea: "Find your city or district",
   areaPlaceholder: "e.g. Toba Tek Singh",
   noAreaMatch: "No city found",
+  placeIntro: "This is how a team finds you.",
   addressLabel: "Write your address",
   addressHint: "Area, street, and a nearby landmark such as a mosque or school",
   addressSaved: "Address written",

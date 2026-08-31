@@ -10,6 +10,7 @@ import LanguageToggle from "./LanguageToggle";
 import Mark from "./Mark";
 import ReviewCard from "./ReviewCard";
 import { stringsFor, type Lang } from "@/lib/i18n";
+import { normaliseImage } from "@/lib/image";
 
 type Question = { field: string; ur: string; en: string };
 type Phase = "compose" | "sending" | "review" | "done" | "error";
@@ -56,6 +57,9 @@ export default function CitizenIntake() {
   const [recording, setRecording] = useState(false);
   const [audio, setAudio] = useState<Blob | null>(null);
   const [image, setImage] = useState<File | null>(null);
+  // Set when the model could not read the attached photo and the rest of the
+  // report went through without it.
+  const [photoDropped, setPhotoDropped] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lon: number; accuracy: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
@@ -268,16 +272,25 @@ export default function CitizenIntake() {
       const res = await fetch("/api/report", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error ?? "Something went wrong. Your report was saved; please try again.");
+        setError(
+          json.reason === "image_rejected"
+            ? t.errorPhoto
+            : json.reason === "network"
+              ? t.errorNetwork
+              : json.reason === "upstream" || json.reason === "no_credential"
+                ? t.errorService
+                : t.errorGeneric,
+        );
         setPhase("error");
         return;
       }
+      setPhotoDropped(Boolean(json.image_dropped));
       setReportId(json.report_id);
       setExtraction(json.extraction);
       setQuestions(json.questions ?? []);
       setPhase("review");
     } catch {
-      setError("Could not reach the service. Check your connection and try again.");
+      setError(t.errorNetwork);
       setPhase("error");
     }
   }
@@ -322,6 +335,7 @@ export default function CitizenIntake() {
     setAddress("");
     setError(null);
     setSilentMic(false);
+    setPhotoDropped(false);
     setTab("report");
   }
 
@@ -486,9 +500,19 @@ export default function CitizenIntake() {
                         accept="image/*"
                         capture="environment"
                         className="sr-only"
-                        onChange={(e) => {
-                          setImage(e.target.files?.[0] ?? null);
+                        onChange={async (e) => {
+                          const picked = e.target.files?.[0] ?? null;
                           startComposing();
+                          if (!picked) {
+                            setImage(null);
+                            return;
+                          }
+                          // Converted here rather than sent as-is: iPhones write
+                          // HEIC and Android increasingly writes AVIF, neither of
+                          // which the model reads. This also shrinks an 8MP photo
+                          // before it crosses a congested network.
+                          const { file } = await normaliseImage(picked);
+                          setImage(file);
                         }}
                       />
                     </label>
@@ -566,6 +590,12 @@ export default function CitizenIntake() {
               speaking={speaking}
               spoken={spokenSummary(extraction)}
             />
+
+            {photoDropped ? (
+              <p role="status" className={`${t.face} rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200`}>
+                {t.photoUnreadable}
+              </p>
+            ) : null}
 
             <section className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
               <LocationPin

@@ -62,10 +62,28 @@ export type ExtractInput = {
   locationText?: string | null;
 };
 
+/**
+ * Why an extraction failed, in a form a caller can branch on.
+ *
+ * The English in `error` is diagnostic and goes to logs and the operator's
+ * evidence panel. It must never reach a citizen: the upstream text for a bad
+ * photo is `InternalError.Algo.InvalidParameter: The image format is illegal`,
+ * which tells someone standing in a flood nothing they can act on.
+ */
+export type FailureReason =
+  | "no_credential"
+  | "image_rejected"
+  | "upstream"
+  | "unparseable"
+  | "network";
+
 export type ExtractResult = {
   ok: boolean;
   data?: Extraction;
   repairs: string[];
+  reason?: FailureReason;
+  /** True when the model succeeded only after the photo was dropped. */
+  imageDropped?: boolean;
   error?: string;
   raw?: string;
   model: string;
@@ -113,7 +131,7 @@ export async function extractReport(
   const started = Date.now();
 
   if (!apiKey) {
-    return { ok: false, repairs: [], error: "DASHSCOPE_API_KEY is not configured", model, latencyMs: 0 };
+    return { ok: false, repairs: [], reason: "no_credential", error: "DASHSCOPE_API_KEY is not configured", model, latencyMs: 0 };
   }
 
   const content: ContentPart[] = [];
@@ -126,6 +144,7 @@ export async function extractReport(
       },
     });
   }
+  const hasImage = Boolean(input.imagePath);
   if (input.imagePath) {
     content.push({ type: "image_url", image_url: { url: dataUrl(input.imagePath, imageMime(input.imagePath)) } });
   }
@@ -160,9 +179,15 @@ export async function extractReport(
 
     if (!res.ok || !res.body) {
       const body = await res.text().catch(() => "");
+      // A rejected photo is recoverable and must not cost the whole report. The
+      // voice note, the text and the location are all still good, and a reporter
+      // who recorded a message should not lose it because their phone wrote HEIC.
+      const rejectedImage =
+        hasImage && /image format is illegal|invalid.*image|cannot be opened|unsupported image/i.test(body);
       return {
         ok: false,
         repairs: [],
+        reason: rejectedImage ? "image_rejected" : "upstream",
         error: `model endpoint returned ${res.status}: ${body.slice(0, 300)}`,
         model,
         latencyMs: Date.now() - started,
@@ -195,6 +220,7 @@ export async function extractReport(
     return {
       ok: false,
       repairs: [],
+      reason: "network",
       error: `model call failed: ${(err as Error).message}`,
       model,
       latencyMs: Date.now() - started,
@@ -204,12 +230,12 @@ export async function extractReport(
   const latencyMs = Date.now() - started;
   const parsed = extractJson(raw);
   if (parsed === null) {
-    return { ok: false, repairs: [], error: "model output was not parseable JSON", raw, model, latencyMs };
+    return { ok: false, repairs: [], reason: "unparseable", error: "model output was not parseable JSON", raw, model, latencyMs };
   }
 
   const norm: NormaliseResult = normaliseExtraction(parsed);
   if (!norm.ok) {
-    return { ok: false, repairs: norm.repairs, error: norm.error, raw, model, latencyMs };
+    return { ok: false, repairs: norm.repairs, reason: "unparseable", error: norm.error, raw, model, latencyMs };
   }
   return { ok: true, data: norm.data, repairs: norm.repairs, raw, model, latencyMs };
 }

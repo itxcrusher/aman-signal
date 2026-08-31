@@ -75,9 +75,18 @@ console.log("\nNo location permission, address that resolves:");
   await p.locator('button:has-text("Confirm and send")').click();
   await p.waitForSelector("text=has been received", { timeout: 120000 });
 
+  // Checked against both surfaces. A report that resembles an earlier one is
+  // held for an operator's duplicate judgement rather than merged, which is
+  // correct and happens constantly when this suite is run more than once. It has
+  // still reached the operators, so asserting only on incidents made the test
+  // fail for the system behaving properly.
   const { incidents } = await (await fetch(`${B}/api/incidents`)).json();
-  const found = incidents.find((i) => (i.locations ?? []).some((l) => l.includes("Shah Faisal")));
-  log(Boolean(found), "the written address reaches the board");
+  const { pending } = await (await fetch(`${B}/api/duplicates`)).json();
+  const inIncident = incidents.find((i) => (i.locations ?? []).some((l) => l.includes("Shah Faisal")));
+  const inQueue = (pending ?? []).find((r) => (r.locations ?? []).some((l) => l.includes("Shah Faisal")));
+  const found = inIncident ?? null;
+  log(Boolean(inIncident || inQueue), "the written address reaches the operators",
+      inIncident ? "as an incident" : "held for duplicate review");
   if (found) {
     log(found.locations.includes(ADDRESS), "verbatim, not the geocoder's paraphrase");
     log(found.lat !== null && found.lon !== null, "and the chosen coordinate came with it",

@@ -88,23 +88,55 @@ export async function POST(req: NextRequest) {
     reporter_phone: reporterPhone,
   });
 
-  const result = await extractReport({ text, audioPath, imagePath, locationText });
+  let result = await extractReport({ text, audioPath, imagePath, locationText });
+
+  /**
+   * A photo the model refuses must not cost the rest of the report.
+   *
+   * Phones write formats the model does not accept: HEIC by default on iPhones,
+   * increasingly AVIF on Android, and anything at all for an image saved from a
+   * browser. Previously one such file failed the whole call, so a reporter who
+   * had recorded a voice note, written a description and attached their location
+   * lost all three because of the attachment. The photo is the least important
+   * of the four and is the only one dropped.
+   *
+   * Only retried when something else was actually sent. A report that was only a
+   * photo has nothing left to extract, and retrying would produce a confident
+   * empty incident, which is worse than an honest failure.
+   */
+  const hadOtherContent = Boolean(text?.trim() || audioPath);
+  let imageDropped = false;
+  if (!result.ok && result.reason === "image_rejected" && hadOtherContent) {
+    console.warn(`[report ${rid}] model rejected the photo, retrying without it: ${result.error}`);
+    result = await extractReport({ text, audioPath, imagePath: null, locationText });
+    imageDropped = result.ok;
+  }
 
   if (!result.ok) {
+    // The upstream text is diagnostic and stays server-side. Sending
+    // "InternalError.Algo.InvalidParameter" to someone standing in a flood tells
+    // them nothing they can act on; the client gets a reason it can translate.
+    console.error(`[report ${rid}] extraction failed (${result.reason ?? "unknown"}): ${result.error}`);
     updateReport(rid, {
       model: result.model,
       latency_ms: result.latencyMs,
-      repairs_json: JSON.stringify(result.repairs),
+      repairs_json: JSON.stringify([...result.repairs, `failed: ${result.error ?? "unknown"}`]),
     });
     return NextResponse.json(
-      { report_id: rid, error: result.error ?? "extraction failed", recoverable: true },
+      { report_id: rid, reason: result.reason ?? "upstream", recoverable: true },
       { status: 502 },
     );
   }
 
+  // Recorded as a repair so the operator's evidence panel shows that a photo was
+  // attached and could not be read, rather than silently showing no photo.
+  const repairs = imageDropped
+    ? [...result.repairs, "photo could not be read by the model and was excluded"]
+    : result.repairs;
+
   updateReport(rid, {
     extraction_json: JSON.stringify(result.data),
-    repairs_json: JSON.stringify(result.repairs),
+    repairs_json: JSON.stringify(repairs),
     model: result.model,
     latency_ms: result.latencyMs,
   });
@@ -115,7 +147,8 @@ export async function POST(req: NextRequest) {
     questions: clarificationQuestions(result.data!, {
       hasCoordinates: Number.isFinite(lat) && Number.isFinite(lon),
     }),
-    repairs: result.repairs,
+    repairs,
+    image_dropped: imageDropped,
     latency_ms: result.latencyMs,
   });
 }

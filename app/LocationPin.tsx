@@ -339,7 +339,9 @@ export default function LocationPin({
     <div>
       <div className="mb-3">
         <h3 className={`${t.face} text-base font-semibold`}>{t.confirmPlace}</h3>
-        <p className={`${t.face} text-sm text-ink-soft`}>{hasFix ? t.dragPin : t.addressHint}</p>
+        {/* Not addressHint: that belongs to the address field below, and
+            repeating it here printed the same sentence twice on one screen. */}
+        <p className={`${t.face} text-sm text-ink-soft`}>{hasFix ? t.dragPin : t.placeIntro}</p>
       </div>
 
       {/* Both blocks stay mounted and swap with CSS order, never by branching
