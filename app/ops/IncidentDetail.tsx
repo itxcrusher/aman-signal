@@ -311,6 +311,12 @@ export default function IncidentDetail({
                       <span className="text-brand-soft">{t.pinPlacedByReporter}</span>
                     ) : null}
                     {r.citizen_safe ? <span className="text-ok">{t.reporterSaysSafe}</span> : null}
+                    {/* Said plainly: this reporter never saw the confirmation
+                        screen, so the extraction below carries the model's word
+                        alone and should be weighed accordingly. */}
+                    {r.queued_offline ? (
+                      <span className="text-warn">{t.sentFromOutbox}</span>
+                    ) : null}
                     {r.latency_ms ? <span className="mono">{r.latency_ms}ms &middot; {r.model}</span> : null}
                   </div>
 

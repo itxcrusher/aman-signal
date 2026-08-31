@@ -79,6 +79,11 @@ const MIGRATIONS: Record<string, Record<string, string>> = {
     // may be safe while their neighbours are not.
     citizen_safe: "INTEGER",
     citizen_safe_at: "INTEGER",
+    // Composed with no network and sent later. Such a report never passed the
+    // confirmation screen, because that needs a model call the reporter was
+    // offline for, so the board must show it as unverified by the person who
+    // sent it rather than implying they checked it.
+    queued_offline: "INTEGER",
   },
   incidents: {
     assigned_at: "INTEGER",
@@ -139,6 +144,7 @@ export type ReportRow = {
   pin_adjusted: number | null;
   citizen_safe: number | null;
   citizen_safe_at: number | null;
+  queued_offline: number | null;
   extraction_json: string | null;
   repairs_json: string | null;
   clarifications_json: string | null;
@@ -190,11 +196,11 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
     .prepare(
       `INSERT INTO reports (id, created_at, status, incident_id, raw_text, audio_path,
         image_path, lat, lon, accuracy_m, location_text, reporter_id, reporter_name,
-        reporter_phone, pin_adjusted, extraction_json, repairs_json,
+        reporter_phone, pin_adjusted, queued_offline, extraction_json, repairs_json,
         clarifications_json, dedup_json, model, latency_ms)
        VALUES (@id, @created_at, @status, @incident_id, @raw_text, @audio_path,
         @image_path, @lat, @lon, @accuracy_m, @location_text, @reporter_id, @reporter_name,
-        @reporter_phone, @pin_adjusted, @extraction_json, @repairs_json,
+        @reporter_phone, @pin_adjusted, @queued_offline, @extraction_json, @repairs_json,
         @clarifications_json, @dedup_json, @model, @latency_ms)`,
     )
     .run({
@@ -211,6 +217,7 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
       reporter_name: null,
       reporter_phone: null,
       pin_adjusted: null,
+      queued_offline: null,
       extraction_json: null,
       repairs_json: null,
       clarifications_json: null,
@@ -228,7 +235,7 @@ export function getReport(rid: string): ReportRow | undefined {
 /** Field names are whitelisted against the table to keep interpolation safe. */
 const REPORT_FIELDS = new Set([
   "status", "incident_id", "raw_text", "audio_path", "image_path", "lat", "lon",
-  "accuracy_m", "location_text", "pin_adjusted", "extraction_json", "repairs_json", "provenance_json",
+  "accuracy_m", "location_text", "pin_adjusted", "queued_offline", "extraction_json", "repairs_json", "provenance_json",
   "clarifications_json", "dedup_json", "model", "latency_ms",
 ]);
 

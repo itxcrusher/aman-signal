@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
   // reports later; the phone number lets an operator call back, which is the most
   // useful thing they can do. Neither is required, because a report from someone
   // who filled nothing in is still a report.
+  // Sent from the outbox after connectivity returned, rather than composed live.
+  const queuedOffline = form.get("queued_offline") === "1";
   const reporterId = (form.get("reporter_id") as string | null)?.trim().slice(0, 64) || null;
   const reporterName = (form.get("reporter_name") as string | null)?.trim().slice(0, 120) || null;
   const reporterPhone = (form.get("reporter_phone") as string | null)?.replace(/[^\d+ -]/g, "").trim().slice(0, 20) || null;
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
     reporter_id: reporterId,
     reporter_name: reporterName,
     reporter_phone: reporterPhone,
+    queued_offline: queuedOffline ? 1 : 0,
   });
 
   let result = await extractReport({ text, audioPath, imagePath, locationText });

@@ -36,6 +36,8 @@ export async function POST(req: NextRequest) {
     corrected?: unknown;
     pin?: { lat?: unknown; lon?: unknown };
     address?: string;
+    /** Flushed from the offline outbox; the reporter never saw this screen. */
+    queued_offline?: boolean;
   };
   try {
     body = await req.json();
@@ -180,7 +182,14 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  audit(incidentId, "citizen", "report_confirmed", `report=${rid}${answerNote}${correctedNote}`);
+  audit(
+    incidentId,
+    "citizen",
+    body.queued_offline ? "report_sent_from_outbox" : "report_confirmed",
+    body.queued_offline
+      ? `report=${rid} composed offline, never verified by the reporter`
+      : `report=${rid}${answerNote}${correctedNote}`,
+  );
 
   return NextResponse.json({
     report_id: rid,

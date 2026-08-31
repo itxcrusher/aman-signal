@@ -20,6 +20,7 @@ export async function GET() {
       raw_text: r.raw_text,
       has_audio: Boolean(r.audio_path),
       has_image: Boolean(r.image_path),
+      queued_offline: r.queued_offline === 1,
       lat: r.lat,
       lon: r.lon,
       summary: extraction?.english_summary ?? null,

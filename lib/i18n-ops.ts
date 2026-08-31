@@ -77,6 +77,7 @@ export type OpsStrings = {
   disputed: string;
   team: string;
   reporterSaysSafe: string;
+  sentFromOutbox: string;
 
   underlyingReports: string;
   reporter: string;
@@ -163,6 +164,7 @@ const en: OpsStrings = {
   disputed: "disputed",
   team: "Team",
   reporterSaysSafe: "Reporter says they are safe",
+  sentFromOutbox: "sent offline, unverified by reporter",
 
   underlyingReports: "Underlying reports",
   reporter: "Reporter",
@@ -247,6 +249,7 @@ const ur: OpsStrings = {
   disputed: "اختلاف",
   team: "ٹیم",
   reporterSaysSafe: "اطلاع دینے والے نے بتایا کہ وہ محفوظ ہیں",
+  sentFromOutbox: "بغیر انٹرنیٹ بھیجی گئی، تصدیق نہیں ہوئی",
 
   underlyingReports: "بنیادی اطلاعات",
   reporter: "اطلاع دینے والا",

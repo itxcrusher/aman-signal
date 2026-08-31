@@ -80,6 +80,13 @@ export type Strings = {
 
   understanding: string;
   understandingHint: string;
+  /* The outbox. A report composed with no network is held, not lost, and the
+     reporter is told so in terms of what happens next rather than what failed. */
+  savedOffline: string;
+  savedOfflineHint: string;
+  pendingCount: (n: number) => string;
+  sendingPending: string;
+  pendingSent: (n: number) => string;
   /* Failures, said in terms of what the person can do next. The upstream text is
      never shown: "InternalError.Algo.InvalidParameter" helps nobody. */
   errorPhoto: string;
@@ -240,6 +247,11 @@ const ur: Strings = {
 
   understanding: "آپ کی اطلاع پڑھی جا رہی ہے...",
   understandingHint: "اس میں چند سیکنڈ لگتے ہیں۔",
+  savedOffline: "انٹرنیٹ نہیں ہے، آپ کی اطلاع محفوظ کر لی گئی ہے",
+  savedOfflineHint: "جیسے ہی سگنل آئے گا، یہ خود بخود بھیج دی جائے گی۔ ایپ بند کر دیں تب بھی محفوظ رہے گی۔",
+  pendingCount: (n) => `${n} اطلاع بھیجنا باقی ہے`,
+  sendingPending: "رکی ہوئی اطلاعات بھیجی جا رہی ہیں...",
+  pendingSent: (n) => `${n} رکی ہوئی اطلاع بھیج دی گئی`,
   errorPhoto: "یہ تصویر پڑھی نہیں جا سکی۔ تصویر ہٹا کر دوبارہ بھیجیں، یا کیمرے سے نئی تصویر لیں۔ آپ کی باقی اطلاع محفوظ ہے۔",
   errorService: "ابھی سروس جواب نہیں دے رہی۔ آپ کی اطلاع محفوظ ہے، دوبارہ کوشش کریں۔",
   errorNetwork: "انٹرنیٹ نہیں مل رہا۔ کنکشن دیکھ کر دوبارہ بھیجیں۔",
@@ -395,6 +407,11 @@ const en: Strings = {
 
   understanding: "Reading your report...",
   understandingHint: "This takes a few seconds.",
+  savedOffline: "No internet. Your report has been saved.",
+  savedOfflineHint: "It will send itself as soon as you have signal. It stays saved even if you close the app.",
+  pendingCount: (n) => `${n} report${n === 1 ? "" : "s"} waiting to send`,
+  sendingPending: "Sending your waiting reports...",
+  pendingSent: (n) => `${n} waiting report${n === 1 ? "" : "s"} sent`,
   errorPhoto: "That photo could not be read. Remove it and send again, or take a new one with the camera. The rest of your report is safe.",
   errorService: "The service is not responding right now. Your report is saved. Please try again.",
   errorNetwork: "No internet connection. Check it and send again.",

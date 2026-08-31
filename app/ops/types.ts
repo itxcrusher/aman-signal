@@ -16,6 +16,8 @@ export type Report = {
   reporter_name: string | null;
   reporter_phone: string | null;
   citizen_safe: boolean;
+  /** Composed with no network; the reporter never confirmed the extraction. */
+  queued_offline: boolean;
   latency_ms: number | null;
   model: string | null;
   repairs: string[];

@@ -45,6 +45,7 @@ export async function GET() {
         reporter_name: r.reporter_name,
         reporter_phone: r.reporter_phone,
         citizen_safe: r.citizen_safe === 1,
+        queued_offline: r.queued_offline === 1,
         latency_ms: r.latency_ms,
         model: r.model,
         repairs: r.repairs_json ? JSON.parse(r.repairs_json) : [],

@@ -20,9 +20,10 @@ const ReviewCard = dynamic(() => import("./ReviewCard"), { ssr: false });
 const LocationPin = dynamic(() => import("./LocationPin"), { ssr: false });
 import { stringsFor, type Lang } from "@/lib/i18n";
 import { normaliseImage } from "@/lib/image";
+import { enqueue, flush, queued, online } from "@/lib/queue";
 
 type Question = { field: string; ur: string; en: string };
-type Phase = "compose" | "sending" | "review" | "done" | "error";
+type Phase = "compose" | "sending" | "review" | "done" | "error" | "queued";
 
 /** Urdu numerals, so the spoken sentence contains no Latin digits. */
 const URDU_NUM = ["صفر", "ایک", "دو", "تین", "چار", "پانچ", "چھ", "سات", "آٹھ", "نو", "دس"];
@@ -69,6 +70,10 @@ export default function CitizenIntake() {
   // Set when the model could not read the attached photo and the rest of the
   // report went through without it.
   const [photoDropped, setPhotoDropped] = useState(false);
+  // Reports composed with no network, waiting for one.
+  const [pending, setPending] = useState(0);
+  const [flushing, setFlushing] = useState(false);
+  const [flushNote, setFlushNote] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number; accuracy: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
@@ -254,6 +259,35 @@ export default function CitizenIntake() {
     setRecording(false);
   }, []);
 
+  /**
+   * Empty the outbox whenever there is a network to empty it into.
+   *
+   * Run on load and on the browser's online event, because the moment signal
+   * returns is exactly when nobody is looking at the screen. navigator.onLine is
+   * optimistic and often wrong in the useful direction, so a failed flush simply
+   * leaves everything queued for the next attempt.
+   */
+  const drain = useCallback(async () => {
+    const waiting = await queued();
+    setPending(waiting.length);
+    if (!waiting.length || !online()) return;
+    setFlushing(true);
+    try {
+      const res = await flush();
+      setPending(res.remaining);
+      if (res.sent > 0) setFlushNote(stringsFor(loadProfile().lang).pendingSent(res.sent));
+    } finally {
+      setFlushing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    drain();
+    const onOnline = () => drain();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [drain]);
+
   const startComposing = useCallback(() => {
     // Anyone who declined at onboarding still gets one contextual chance, at the
     // moment their intent is unambiguous.
@@ -299,8 +333,30 @@ export default function CitizenIntake() {
       setQuestions(json.questions ?? []);
       setPhase("review");
     } catch {
-      setError(t.errorNetwork);
-      setPhase("error");
+      // The request never reached the server. Queue it rather than telling
+      // someone in a flood to type it all again, which is the response that
+      // costs the most at the moment they can least afford it.
+      try {
+        await enqueue({
+          text: text.trim() || null,
+          audio,
+          image,
+          lat: coords?.lat ?? null,
+          lon: coords?.lon ?? null,
+          accuracy: coords?.accuracy ?? null,
+          locationText: address.trim() || null,
+          reporterId: profile?.reporterId ?? "",
+          reporterName: profile?.name ?? "",
+          reporterPhone: profile?.phone ?? "",
+        });
+        setPending((n) => n + 1);
+        setPhase("queued");
+      } catch {
+        // Even the outbox failed, which means storage is unavailable. Now it is
+        // honest to say the report could not be kept.
+        setError(t.errorNetwork);
+        setPhase("error");
+      }
     }
   }
 
@@ -365,7 +421,7 @@ export default function CitizenIntake() {
     );
   }
 
-  const settled = phase === "compose" || phase === "error" || phase === "done";
+  const settled = phase === "compose" || phase === "error" || phase === "done" || phase === "queued";
   const t = stringsFor(profile.lang);
 
   function setLang(lang: Lang) {
@@ -468,6 +524,33 @@ export default function CitizenIntake() {
 
         {settled && tab === "mine" ? (
           <MyReports reporterId={profile.reporterId} lang={profile.lang} />
+        ) : null}
+
+        {settled && (pending > 0 || flushing || flushNote) ? (
+          <div
+            role="status"
+            className={`${t.face} mb-4 rounded-xl px-4 py-3 text-sm ring-1 ${
+              flushNote
+                ? "bg-ok/10 text-ok ring-ok"
+                : "bg-amber-50 text-amber-900 ring-amber-200"
+            }`}
+          >
+            {flushing ? t.sendingPending : (flushNote ?? t.pendingCount(pending))}
+          </div>
+        ) : null}
+
+        {tab === "report" && phase === "queued" ? (
+          <div className="rounded-2xl bg-day-surface p-8 text-center ring-1 ring-amber-200">
+            <p className={`${t.face} text-xl font-bold text-amber-900`}>{t.savedOffline}</p>
+            <p className={`${t.face} mt-2 text-ink-soft`}>{t.savedOfflineHint}</p>
+            <button
+              type="button"
+              onClick={resetForNewReport}
+              className={`${t.face} mt-6 rounded-xl bg-brand px-5 py-4 text-base font-semibold text-white`}
+            >
+              {t.sendAnother}
+            </button>
+          </div>
         ) : null}
 
         {tab === "report" && (phase === "compose" || phase === "error") ? (
