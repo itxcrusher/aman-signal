@@ -469,6 +469,37 @@ export function setIncidentOverride(
   return true;
 }
 
+/**
+ * Replace an incident's headline with one synthesised from all its reports.
+ *
+ * Refuses when an operator has corrected the summary themselves. A human who has
+ * spoken to the reporter knows more than a model reading them, and silently
+ * overwriting that correction the next time an update arrived would be the
+ * worst kind of bug: invisible, and it would look like the operator's own edit
+ * had simply not saved.
+ *
+ * Attributed to the machine in the audit trail, because that is what it is.
+ */
+export function setIncidentSynthesis(iid: string, summary: string): boolean {
+  const row = db().prepare("SELECT override_json FROM incidents WHERE id = ?").get(iid) as
+    | { override_json: string | null }
+    | undefined;
+  if (!row) return false;
+
+  try {
+    const o = row.override_json ? (JSON.parse(row.override_json) as { summary?: unknown }) : {};
+    if (typeof o.summary === "string" && o.summary.trim()) return false;
+  } catch {
+    // A malformed override is not a correction worth protecting.
+  }
+
+  db()
+    .prepare("UPDATE incidents SET summary = ?, updated_at = ? WHERE id = ?")
+    .run(summary, Date.now(), iid);
+  audit(iid, "ai", "summary_resynthesised", "rewritten from all linked reports");
+  return true;
+}
+
 /** Drop an operator's corrections and fall back to what the reports derive. */
 export function clearIncidentOverride(iid: string, actor: string): boolean {
   const res = db()

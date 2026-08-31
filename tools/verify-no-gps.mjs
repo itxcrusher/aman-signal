@@ -7,6 +7,7 @@ import { chromium } from "playwright";
  */
 
 const B = process.env.BASE ?? "http://localhost:3000";
+const RUN = Math.random().toString(36).slice(2, 7);
 const out = [];
 const log = (ok, m, x = "") => {
   out.push(ok);
@@ -39,7 +40,7 @@ async function toReview(p, text) {
 console.log("\nNo location permission, address that resolves:");
 {
   const { ctx, p } = await newReporter("Address Test");
-  await toReview(p, "pani ghar mein aa gaya hai, ammi aur bachay upar hain, raasta band hai");
+  await toReview(p, `pani ghar mein aa gaya hai, ammi aur bachay upar hain, raasta band hai, ${RUN} mor`);
 
   const review = await p.locator("main").innerText();
   log(/No location set yet/.test(review), "honest that no location is known");
@@ -99,7 +100,7 @@ console.log("\nNo location permission, address that resolves:");
 console.log("\nAddress the geocoder cannot resolve:");
 {
   const { ctx, p } = await newReporter("Unfindable Test");
-  await toReview(p, "hamare gali mein pani bohat hai, madad chahiye");
+  await toReview(p, `hamare gali mein pani bohat hai, madad chahiye, ${RUN} adda`);
 
   await p.locator("#address").fill("Gali 4 Mohalla Islampura Toba Tek Singh");
   await p.locator('button:has-text("Find on map")').click();
@@ -114,9 +115,14 @@ console.log("\nAddress the geocoder cannot resolve:");
   await p.waitForSelector("text=has been received", { timeout: 120000 });
   log(true, "sends with an address and no coordinate at all");
 
+  // Both surfaces, for the same reason as above: a held report has reached the
+  // operators, it is simply awaiting their duplicate judgement.
   const { incidents } = await (await fetch(`${B}/api/incidents`)).json();
-  const found = incidents.find((i) => (i.locations ?? []).some((l) => l.includes("Islampura")));
-  log(Boolean(found), "the unresolvable address still reaches the board");
+  const { pending } = await (await fetch(`${B}/api/duplicates`)).json();
+  const inInc = incidents.find((i) => (i.locations ?? []).some((l) => l.includes("Islampura")));
+  const inQueue = (pending ?? []).find((r) => (r.locations ?? []).some((l) => l.includes("Islampura")));
+  log(Boolean(inInc || inQueue), "the unresolvable address still reaches the operators",
+      inInc ? "as an incident" : "held for duplicate review");
   await ctx.close();
 }
 

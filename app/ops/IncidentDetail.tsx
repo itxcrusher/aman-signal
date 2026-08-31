@@ -330,6 +330,39 @@ export default function IncidentDetail({
                     </p>
                   ) : null}
 
+                  {/* The evidence itself, not a description of it. A transcript
+                      sits about 12% word error rate away from what was said, and
+                      an operator deciding whether to send a boat should be able
+                      to hear the difference. */}
+                  {r.has_audio ? (
+                    <audio
+                      controls
+                      preload="none"
+                      src={`/api/media/${r.id}?kind=audio`}
+                      className="mb-2 w-full"
+                    />
+                  ) : null}
+
+                  {r.has_image ? (
+                    <a
+                      href={`/api/media/${r.id}?kind=image`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mb-2 block"
+                    >
+                      {/* Deliberately an <img>, not next/image: this is a
+                          user-uploaded file served from our own API, not a build
+                          time asset the optimiser knows the dimensions of. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/media/${r.id}?kind=image`}
+                        alt="Photo attached to this report"
+                        loading="lazy"
+                        className="max-h-64 rounded-lg border border-line object-contain"
+                      />
+                    </a>
+                  ) : null}
+
                   {r.raw_text ? (
                     <p className="mb-2 text-sm text-paper" dir="auto">
                       {r.raw_text}

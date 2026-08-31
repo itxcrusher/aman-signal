@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { stringsFor, type Lang } from "@/lib/i18n";
+import { normaliseImage } from "@/lib/image";
 
 /**
  * What became of the reports this person sent.
@@ -45,6 +46,11 @@ export default function MyReports({
   const [updating, setUpdating] = useState<string | null>(null);
   const [updateText, setUpdateText] = useState("");
   const [updateNote, setUpdateNote] = useState<{ id: string; text: string; ok: boolean } | null>(null);
+  const [updateAudio, setUpdateAudio] = useState<Blob | null>(null);
+  const [updateImage, setUpdateImage] = useState<File | null>(null);
+  const [recording, setRecording] = useState(false);
+  const recorder = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
 
   const load = useCallback(async () => {
     if (!reporterId) return;
@@ -84,6 +90,38 @@ export default function MyReports({
   }
 
   /**
+   * An update can be spoken, not only typed. Someone whose situation has changed
+   * is no more able to type than they were the first time, and the whole reason
+   * this product exists is that speaking is the faster path.
+   */
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks.current = [];
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data);
+      rec.onstop = () => {
+        stream.getTracks().forEach((t2) => t2.stop());
+        if (chunks.current.length) {
+          setUpdateAudio(new Blob(chunks.current, { type: rec.mimeType || "audio/webm" }));
+        }
+      };
+      recorder.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      // No microphone, or refused. Typing still works, so this stays quiet
+      // rather than throwing an error at someone mid-emergency.
+      setRecording(false);
+    }
+  }
+
+  function stopRecording() {
+    recorder.current?.stop();
+    setRecording(false);
+  }
+
+  /**
    * Adding to a report, not rewriting it. The original stays exactly as sent,
    * because an operator may already have acted on it, and a dispatcher reading
    * "water was at the knee, now at the waist" learns more than one who is shown
@@ -91,18 +129,22 @@ export default function MyReports({
    */
   async function sendUpdate(reportId: string) {
     const text = updateText.trim();
-    if (!text) return;
+    if (!text && !updateAudio && !updateImage) return;
     setBusy(reportId);
     try {
-      const res = await fetch("/api/my-reports/followup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reporter_id: reporterId, report_id: reportId, text }),
-      });
+      const fd = new FormData();
+      fd.set("reporter_id", reporterId);
+      fd.set("report_id", reportId);
+      if (text) fd.set("text", text);
+      if (updateAudio) fd.set("audio", new File([updateAudio], "update.webm", { type: updateAudio.type }));
+      if (updateImage) fd.set("image", updateImage);
+      const res = await fetch("/api/my-reports/followup", { method: "POST", body: fd });
       if (res.ok) {
         setUpdateNote({ id: reportId, text: t.updateSent, ok: true });
         setUpdating(null);
         setUpdateText("");
+        setUpdateAudio(null);
+        setUpdateImage(null);
         await load();
       } else {
         const j = await res.json().catch(() => ({}));
@@ -228,10 +270,47 @@ export default function MyReports({
                     placeholder={t.updatePlaceholder}
                     className="mt-2 w-full rounded-xl border border-day-line bg-day p-4 text-base outline-none focus:border-brand"
                   />
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={recording ? stopRecording : startRecording}
+                      className={`${t.face} rounded-xl px-3 py-3 text-sm font-medium ring-1 ${
+                        recording
+                          ? "bg-critical text-white ring-critical"
+                          : updateAudio
+                            ? "bg-brand/10 text-brand ring-brand"
+                            : "bg-day text-ink-soft ring-day-line"
+                      }`}
+                    >
+                      {recording ? t.stopRecording : updateAudio ? t.voiceAttached : t.attachVoice}
+                    </button>
+                    <label
+                      className={`${t.face} cursor-pointer rounded-xl px-3 py-3 text-center text-sm font-medium ring-1 ${
+                        updateImage ? "bg-brand/10 text-brand ring-brand" : "bg-day text-ink-soft ring-day-line"
+                      }`}
+                    >
+                      {updateImage ? t.photoAttached : t.attachPhoto}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        onChange={async (e) => {
+                          const picked = e.target.files?.[0] ?? null;
+                          if (!picked) return setUpdateImage(null);
+                          const { file } = await normaliseImage(picked);
+                          setUpdateImage(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={busy === r.id || !updateText.trim()}
+                      disabled={
+                        busy === r.id || (!updateText.trim() && !updateAudio && !updateImage)
+                      }
                       onClick={() => sendUpdate(r.id)}
                       className={`${t.face} rounded-xl bg-brand px-5 py-3 text-base font-semibold text-white disabled:opacity-40`}
                     >
@@ -242,6 +321,8 @@ export default function MyReports({
                       onClick={() => {
                         setUpdating(null);
                         setUpdateText("");
+                        setUpdateAudio(null);
+                        setUpdateImage(null);
                       }}
                       className={`${t.face} rounded-xl px-5 py-3 text-base text-ink-soft ring-1 ring-day-line`}
                     >
@@ -255,6 +336,8 @@ export default function MyReports({
                   onClick={() => {
                     setUpdating(r.id);
                     setUpdateText("");
+                    setUpdateAudio(null);
+                    setUpdateImage(null);
                     setUpdateNote(null);
                   }}
                   className={`${t.face} w-full rounded-xl bg-day px-4 py-3 text-base font-medium text-brand ring-1 ring-brand`}

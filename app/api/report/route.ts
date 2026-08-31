@@ -2,30 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import { extractReport, clarificationQuestions } from "@/lib/extract";
-import { insertReport, updateReport, getReport, mediaDir, id } from "@/lib/db";
+import { insertReport, updateReport, getReport, id } from "@/lib/db";
+import { saveUpload } from "@/lib/media";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const MAX_BYTES = 12 * 1024 * 1024;
-const AUDIO_EXT: Record<string, string> = {
-  "audio/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3",
-  "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a",
-};
-const IMAGE_EXT: Record<string, string> = {
-  "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
-};
-
-async function save(file: File, kind: "audio" | "image"): Promise<string | null> {
-  if (!file || file.size === 0) return null;
-  if (file.size > MAX_BYTES) throw new Error(`${kind} exceeds ${MAX_BYTES / 1024 / 1024}MB`);
-  const table = kind === "audio" ? AUDIO_EXT : IMAGE_EXT;
-  const ext = table[file.type] ?? (kind === "audio" ? "webm" : "jpg");
-  const name = `${id()}.${ext}`;
-  const dest = path.join(mediaDir(), name);
-  fs.writeFileSync(dest, Buffer.from(await file.arrayBuffer()));
-  return dest;
-}
 
 /**
  * Intake. Creates the Report as evidence first, then extracts. The report row
@@ -59,8 +40,8 @@ export async function POST(req: NextRequest) {
   let audioPath: string | null = null;
   let imagePath: string | null = null;
   try {
-    audioPath = await save(form.get("audio") as File, "audio");
-    imagePath = await save(form.get("image") as File, "image");
+    audioPath = await saveUpload(form.get("audio") as File | null, "audio");
+    imagePath = await saveUpload(form.get("image") as File | null, "image");
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 413 });
   }
