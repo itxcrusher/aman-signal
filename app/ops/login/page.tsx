@@ -42,7 +42,12 @@ export default function OpsLogin() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
+    // The board's own surface, not the citizen page's. Without it this page
+    // rendered the operator palette on the default white ground, which left the
+    // heading grey on white and effectively unreadable; it looked fine in every
+    // status code and only showed up in a screenshot.
+    <main className="ops-surface flex min-h-screen flex-col justify-center bg-ground px-6 text-paper">
+      <div className="mx-auto w-full max-w-md">
       <h1 className="text-lg font-semibold text-paper">AmanSignal operations</h1>
       <p className="mt-2 text-sm leading-relaxed text-paper-soft">
         This board carries reporters&apos; names, phone numbers, photographs and recordings of their
@@ -84,6 +89,7 @@ export default function OpsLogin() {
         </a>
         .
       </p>
+      </div>
     </main>
   );
 }
