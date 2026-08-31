@@ -40,9 +40,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Standalone tracing does not follow the native .node binary; copy it explicitly.
+#
+# better-sqlite3 alone is enough. It ships prebuilt binaries under prebuilds/ and
+# selects one through its own lib/binding.js, so nothing else is needed at run
+# time: the only requires in that path are fs, path and util.
+#
+# This previously also copied `bindings` and `file-uri-to-path`, which were how
+# better-sqlite3 located its binary up to v8. Neither is a dependency of v13, so
+# neither is installed, and the build failed at the COPY with "file does not
+# exist" rather than at anything to do with the app.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bindings ./node_modules/bindings
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 
 USER nextjs
 EXPOSE 3000
