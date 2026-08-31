@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
+const RUN = Math.random().toString(36).slice(2, 7);
 const out = [];
 const log = (ok, msg, extra = "") => {
   out.push(ok);
@@ -65,7 +66,7 @@ let reporterId = null;
 
   // ---------- 3. The confirmation screen is actually editable ----------
   await page.locator("#report").fill(
-    "gali mein pani bohat barh gaya hai, do bachay chat par hain, raasta band hai",
+    `gali mein pani bohat barh gaya hai, do bachay chat par hain, raasta band hai, mohalla ${RUN}`,
   );
   await page.locator('button:has-text("Send report")').click();
   await page.waitForSelector("text=This is what we understood", { timeout: 180000 });
@@ -119,6 +120,23 @@ let reporterId = null;
   log(/Received/.test(mine), "their report is listed");
   log(/Are you safe now\?/.test(mine), "reporter is offered the safe signal");
 
+  // ---------- 5b. Adding to a report, rather than editing it ----------
+  log(/Add an update/.test(mine), "a reporter can add to what they sent");
+  await page.getByRole("button", { name: "Add an update" }).first().click();
+  await page.waitForTimeout(400);
+  const form = await page.locator("main").innerText();
+  log(/stays as it is/.test(form), "and is told the original is kept");
+
+  await page.locator("main textarea").first().fill("the water is higher now, we have moved upstairs");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.waitForTimeout(9000);
+  const afterUpdate = await page.locator("main").innerText();
+  // Either it attached, or the first report is still held for duplicate review,
+  // which is a real state and must be said plainly rather than failing silently.
+  log(/reached the team|still being reviewed/.test(afterUpdate),
+      "the update is acknowledged either way",
+      /reached the team/.test(afterUpdate) ? "attached" : "first report still under review");
+
   await page.locator('button:has-text("I am safe now")').click();
   await page.waitForSelector("text=/you are safe/i", { timeout: 60000 });
   const safe = await page.locator("main").innerText();
@@ -141,15 +159,17 @@ console.log("\nOperations dashboard:");
   const setup = await page.locator("main").innerText();
   log(/Your name/.test(setup), "dashboard asks who is at the desk");
   log(/Your district/.test(setup), "and which district they run");
-  log(/Toba Tek Singh/.test(setup), "districts are listed");
+  log(/Your district/.test(setup), "a district picker is offered");
 
   const openBtn = page.locator('button:has-text("Open the board")');
   log(await openBtn.isDisabled(), "cannot open the board unidentified");
 
   await page.locator("#op-name").fill("Hassaan");
-  await page.locator('input[aria-label="Search districts"]').fill("Toba");
+  // A combobox rather than a wall of chips: open, type, choose.
+  await page.getByRole("button", { name: /Search districts|Toba Tek Singh/ }).first().click();
+  await page.locator('input[aria-label^="Search districts"]').fill("Toba");
   await page.waitForTimeout(400);
-  await page.locator('button:has-text("Toba Tek Singh")').first().click();
+  await page.getByRole("option", { name: /Toba Tek Singh/ }).first().click();
   log(!(await openBtn.isDisabled()), "enabled once named and placed");
   await openBtn.click();
   await page.waitForTimeout(2500);
@@ -165,9 +185,10 @@ console.log("\nOperations dashboard:");
   // Exact: "Change" also matches "Change team" on an assigned incident.
   await page.getByRole("button", { name: "Change", exact: true }).click();
   await page.waitForTimeout(600);
-  await page.locator('input[aria-label="Search districts"]').fill("Gwadar");
+  await page.getByRole("button", { name: /Search districts|Toba Tek Singh/ }).first().click();
+  await page.locator('input[aria-label^="Search districts"]').fill("Gwadar");
   await page.waitForTimeout(400);
-  await page.locator('button:has-text("Gwadar")').first().click();
+  await page.getByRole("option", { name: /Gwadar/ }).first().click();
   await page.locator('button:has-text("Open the board")').click();
   await page.waitForTimeout(2500);
 

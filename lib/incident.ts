@@ -1,4 +1,5 @@
 import type { Extraction } from "./schema";
+import { URGENCY_INDICATORS, VULNERABLE_GROUPS } from "./schema";
 import type { ReportRow, IncidentRow } from "./db";
 
 /**
@@ -27,6 +28,12 @@ export type IncidentView = {
   /** Never a sum. Distinct claims, with their source counts. */
   peopleClaims: { value: number; sources: number }[];
   conflicts: Conflict[];
+  /**
+   * Which fields an operator has corrected, and who did it. Present so the board
+   * can show a corrected value as a human judgement rather than passing it off
+   * as something the reports said.
+   */
+  corrected: { fields: string[]; by: string; at: number } | null;
   quality: {
     locationQuality: "pinned" | "gps" | "landmark" | "missing";
     completeness: { present: number; total: number };
@@ -109,6 +116,64 @@ export function buildIncidentView(incident: IncidentRow, reports: ReportRow[]): 
     });
   }
 
+  /**
+   * An operator's corrections, layered over everything derived above.
+   *
+   * Applied last and deliberately not merged into the counts: a corrected people
+   * figure replaces the claim list rather than joining it, because an operator
+   * who has spoken to the reporter is not one more anonymous source. The reports
+   * underneath are untouched and still visible in the evidence panel, so the
+   * derivation can always be checked against the correction.
+   */
+  let corrected: IncidentView["corrected"] = null;
+  if (incident.override_json) {
+    try {
+      const o = JSON.parse(incident.override_json) as Record<string, unknown>;
+      const fields = Object.keys(o).filter((k) => k !== "edited_by" && k !== "edited_at");
+      if (fields.length) {
+        corrected = {
+          fields,
+          by: typeof o.edited_by === "string" ? o.edited_by : "unknown",
+          at: typeof o.edited_at === "number" ? o.edited_at : Date.now(),
+        };
+      }
+      // Filtered against the schema vocabularies: an override is operator input
+      // and must not be able to introduce a value the rest of the board, or the
+      // label tables, would not recognise.
+      if (Array.isArray(o.urgency_indicators)) {
+        const chosen = (o.urgency_indicators as string[]).filter(
+          (v): v is Extraction["urgency_indicators"][number] =>
+            (URGENCY_INDICATORS as readonly string[]).includes(v),
+        );
+        urgency.length = 0;
+        for (const i of chosen) urgency.push({ indicator: i, sources: urgencyCounts.get(i) ?? 0 });
+      }
+      if (Array.isArray(o.vulnerable_people)) {
+        const chosen = (o.vulnerable_people as string[]).filter(
+          (v): v is Extraction["vulnerable_people"][number] =>
+            (VULNERABLE_GROUPS as readonly string[]).includes(v),
+        );
+        vulnerable.length = 0;
+        vulnerable.push(...chosen);
+      }
+      if ("people_affected" in o) {
+        peopleClaims.length = 0;
+        if (typeof o.people_affected === "number") {
+          peopleClaims.push({ value: o.people_affected, sources: 0 });
+        }
+        // A corrected count settles the dispute it was correcting.
+        const i = conflicts.findIndex((c) => c.field === "people_affected");
+        if (i !== -1) conflicts.splice(i, 1);
+      }
+      if (typeof o.road_access === "string") {
+        const i = conflicts.findIndex((c) => c.field === "road_access");
+        if (i !== -1) conflicts.splice(i, 1);
+      }
+    } catch {
+      // A malformed override is ignored; the derived view is still correct.
+    }
+  }
+
   const withGps = reports.some((r) => r.lat !== null && r.lon !== null);
   // A pin the reporter placed by hand outranks the phone's fix. They were standing
   // at the place; the handset was estimating from towers and a partial sky, and in
@@ -137,6 +202,7 @@ export function buildIncidentView(incident: IncidentRow, reports: ReportRow[]): 
     resources,
     peopleClaims,
     conflicts,
+    corrected,
     locations,
     quality: {
       locationQuality,

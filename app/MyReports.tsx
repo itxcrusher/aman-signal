@@ -42,6 +42,9 @@ export default function MyReports({
   const [reports, setReports] = useState<MyReport[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [updateText, setUpdateText] = useState("");
+  const [updateNote, setUpdateNote] = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
   const load = useCallback(async () => {
     if (!reporterId) return;
@@ -75,6 +78,42 @@ export default function MyReports({
       await load();
     } catch {
       /* The refresh below will show the true state either way. */
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Adding to a report, not rewriting it. The original stays exactly as sent,
+   * because an operator may already have acted on it, and a dispatcher reading
+   * "water was at the knee, now at the waist" learns more than one who is shown
+   * only the corrected end state.
+   */
+  async function sendUpdate(reportId: string) {
+    const text = updateText.trim();
+    if (!text) return;
+    setBusy(reportId);
+    try {
+      const res = await fetch("/api/my-reports/followup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reporter_id: reporterId, report_id: reportId, text }),
+      });
+      if (res.ok) {
+        setUpdateNote({ id: reportId, text: t.updateSent, ok: true });
+        setUpdating(null);
+        setUpdateText("");
+        await load();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setUpdateNote({
+          id: reportId,
+          text: j.reason === "not_yet_reviewed" ? t.updateTooEarly : t.updateFailed,
+          ok: false,
+        });
+      }
+    } catch {
+      setUpdateNote({ id: reportId, text: t.updateFailed, ok: false });
     } finally {
       setBusy(null);
     }
@@ -174,6 +213,64 @@ export default function MyReports({
                 .filter(Boolean)
                 .join(" · ")}
             </p>
+
+            {/* Adding to what they sent, rather than editing it. */}
+            <div className="mt-4 border-t border-day-line pt-4">
+              {updating === r.id ? (
+                <>
+                  <p className={`${t.face} text-sm font-semibold`}>{t.addUpdate}</p>
+                  <p className={`${t.face} mt-1 text-sm text-ink-soft`}>{t.addUpdateHint}</p>
+                  <textarea
+                    value={updateText}
+                    onChange={(e) => setUpdateText(e.target.value)}
+                    rows={3}
+                    dir="auto"
+                    placeholder={t.updatePlaceholder}
+                    className="mt-2 w-full rounded-xl border border-day-line bg-day p-4 text-base outline-none focus:border-brand"
+                  />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy === r.id || !updateText.trim()}
+                      onClick={() => sendUpdate(r.id)}
+                      className={`${t.face} rounded-xl bg-brand px-5 py-3 text-base font-semibold text-white disabled:opacity-40`}
+                    >
+                      {busy === r.id ? t.sendingUpdate : t.sendUpdate}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUpdating(null);
+                        setUpdateText("");
+                      }}
+                      className={`${t.face} rounded-xl px-5 py-3 text-base text-ink-soft ring-1 ring-day-line`}
+                    >
+                      {t.cancel}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUpdating(r.id);
+                    setUpdateText("");
+                    setUpdateNote(null);
+                  }}
+                  className={`${t.face} w-full rounded-xl bg-day px-4 py-3 text-base font-medium text-brand ring-1 ring-brand`}
+                >
+                  {t.addUpdate}
+                </button>
+              )}
+              {updateNote && updateNote.id === r.id ? (
+                <p
+                  role="status"
+                  className={`${t.face} mt-2 text-sm ${updateNote.ok ? "text-ok" : "text-critical"}`}
+                >
+                  {updateNote.text}
+                </p>
+              ) : null}
+            </div>
 
             {/* Only they know the danger has passed. Saying so does not close the
                 incident, since their neighbours may still be in it, but it tells a

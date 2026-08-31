@@ -25,6 +25,7 @@ export async function GET() {
       resources: view.resources,
       people_claims: view.peopleClaims,
       conflicts: view.conflicts,
+      corrected: view.corrected,
       quality: view.quality,
       locations: view.locations,
       signal: signalStrength(view),

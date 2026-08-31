@@ -143,6 +143,17 @@ export type Strings = {
   myReportsFailedBody: string;
   tryAgain: string;
   team: string;
+  /* Adding to a report already sent. Not an edit: the first message stays,
+     because an operator acted on it and needs it to still exist. */
+  cancel: string;
+  addUpdate: string;
+  addUpdateHint: string;
+  updatePlaceholder: string;
+  sendUpdate: string;
+  sendingUpdate: string;
+  updateSent: string;
+  updateTooEarly: string;
+  updateFailed: string;
   markSafeTitle: string;
   markSafeBody: string;
   markSafe: string;
@@ -288,6 +299,15 @@ const ur: Strings = {
   myReportsFailedBody: "اپنا انٹرنیٹ دیکھ کر دوبارہ کوشش کریں۔",
   tryAgain: "دوبارہ کوشش کریں",
   team: "ٹیم",
+  cancel: "منسوخ کریں",
+  addUpdate: "نئی بات بتائیں",
+  addUpdateHint: "جو پہلے بھیجا وہ ویسا ہی رہے گا۔ یہ اس کے ساتھ شامل ہو جائے گا۔",
+  updatePlaceholder: "مثال: پانی اور بڑھ گیا ہے، ہم چھت پر آ گئے ہیں",
+  sendUpdate: "بھیجیں",
+  sendingUpdate: "بھیجا جا رہا ہے...",
+  updateSent: "آپ کی نئی بات ٹیم تک پہنچا دی گئی ہے",
+  updateTooEarly: "آپ کی پہلی اطلاع کا ابھی جائزہ لیا جا رہا ہے۔ تھوڑی دیر بعد کوشش کریں۔",
+  updateFailed: "بھیجی نہیں جا سکی۔ دوبارہ کوشش کریں۔",
   markSafeTitle: "کیا اب آپ محفوظ ہیں؟",
   markSafeBody:
     "اگر مدد پہنچ گئی ہے یا اب خطرہ نہیں رہا تو بتا دیں۔ کنٹرول روم کو پتہ چل جائے گا کہ ٹیم کہیں اور جا سکتی ہے۔",
@@ -434,6 +454,15 @@ const en: Strings = {
   myReportsFailedBody: "Check your connection and try again.",
   tryAgain: "Try again",
   team: "Team",
+  cancel: "Cancel",
+  addUpdate: "Add an update",
+  addUpdateHint: "What you already sent stays as it is. This is added alongside it.",
+  updatePlaceholder: "e.g. the water is higher now, we have moved to the roof",
+  sendUpdate: "Send",
+  sendingUpdate: "Sending...",
+  updateSent: "Your update has reached the team",
+  updateTooEarly: "Your first report is still being reviewed. Please try again shortly.",
+  updateFailed: "That could not be sent. Please try again.",
   markSafeTitle: "Are you safe now?",
   markSafeBody:
     "If help has reached you or the danger has passed, say so. The control room will know a team can go elsewhere.",

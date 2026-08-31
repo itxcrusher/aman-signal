@@ -87,6 +87,12 @@ const MIGRATIONS: Record<string, Record<string, string>> = {
     // national list of everything in the country is worse than useless to the
     // person staffing one room.
     district: "TEXT",
+    // An operator's corrections, layered over the values derived from reports.
+    // Stored here rather than written back into the reports because reports are
+    // evidence: a citizen said what they said, and an operator deciding the
+    // model misread it does not change what was said. The derivation stays
+    // intact underneath, so removing the override restores it exactly.
+    override_json: "TEXT",
   },
 };
 
@@ -154,6 +160,26 @@ export type IncidentRow = {
   assigned_at: number | null;
   assigned_by: string | null;
   district: string | null;
+  override_json: string | null;
+};
+
+/**
+ * What an operator may correct on an incident.
+ *
+ * Every field here is interpretation: a judgement about what the reports mean.
+ * Nothing that is evidence appears in this list, so there is no way to edit what
+ * a reporter actually said, only what the board concludes from it.
+ */
+export type IncidentOverride = {
+  summary?: string;
+  incident_type?: string;
+  urgency_indicators?: string[];
+  people_affected?: number | null;
+  vulnerable_people?: string[];
+  road_access?: string;
+  /** Set on save so the board can show the correction as a human judgement. */
+  edited_by?: string;
+  edited_at?: number;
 };
 
 export const id = () =>
@@ -395,6 +421,62 @@ export function assignIncident(iid: string, team: string, actor: string) {
     .run(team, now, actor, now, iid);
   if (res.changes === 0) throw new Error("incident not found");
   audit(iid, actor, "assigned", `team=${team}`);
+}
+
+/**
+ * Record an operator's correction to an incident.
+ *
+ * Merged over any previous override rather than replacing it, so two operators
+ * correcting different fields do not undo each other. The audit line names the
+ * fields touched, not their values: the values are visible on the incident, and
+ * an audit trail that restates them is unreadable at the length these grow to.
+ */
+export function setIncidentOverride(
+  iid: string,
+  patch: IncidentOverride,
+  actor: string,
+): boolean {
+  const row = db().prepare("SELECT override_json FROM incidents WHERE id = ?").get(iid) as
+    | { override_json: string | null }
+    | undefined;
+  if (!row) return false;
+
+  let existing: IncidentOverride = {};
+  try {
+    existing = row.override_json ? (JSON.parse(row.override_json) as IncidentOverride) : {};
+  } catch {
+    // A malformed override is discarded rather than blocking the correction.
+    existing = {};
+  }
+
+  const now = Date.now();
+  const merged: IncidentOverride = { ...existing, ...patch, edited_by: actor, edited_at: now };
+  const touched = Object.keys(patch).filter((k) => k !== "edited_by" && k !== "edited_at");
+
+  db()
+    .prepare("UPDATE incidents SET override_json = ?, updated_at = ? WHERE id = ?")
+    .run(JSON.stringify(merged), now, iid);
+
+  // Summary edits also update the column the board and the map read directly.
+  if (typeof patch.summary === "string") {
+    db().prepare("UPDATE incidents SET summary = ? WHERE id = ?").run(patch.summary, iid);
+  }
+  if (typeof patch.incident_type === "string") {
+    db().prepare("UPDATE incidents SET incident_type = ? WHERE id = ?").run(patch.incident_type, iid);
+  }
+
+  audit(iid, actor, "incident_edited", touched.length ? `fields=${touched.join(",")}` : "no fields");
+  return true;
+}
+
+/** Drop an operator's corrections and fall back to what the reports derive. */
+export function clearIncidentOverride(iid: string, actor: string): boolean {
+  const res = db()
+    .prepare("UPDATE incidents SET override_json = NULL, updated_at = ? WHERE id = ?")
+    .run(Date.now(), iid);
+  if (res.changes === 0) return false;
+  audit(iid, actor, "incident_edit_cleared", "reverted to values derived from reports");
+  return true;
 }
 
 export function auditFor(incidentId: string) {

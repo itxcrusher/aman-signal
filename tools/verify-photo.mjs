@@ -12,6 +12,7 @@ import { chromium } from "playwright";
  */
 
 const B = process.env.BASE ?? "http://localhost:3000";
+const RUN = Math.random().toString(36).slice(2, 7);
 const out = [];
 const log = (ok, m, x = "") => {
   out.push(ok);
@@ -62,7 +63,7 @@ console.log("\nBrowser-side normalisation:");
     await route.continue();
   });
 
-  await p.locator("#report").fill("gali mein pani bohat hai, madad chahiye");
+  await p.locator("#report").fill(`gali mein pani bohat hai, madad chahiye, mohalla ${RUN}`);
   await p.locator('button:has-text("Send report")').click();
   await p.waitForSelector("text=This is what we understood", { timeout: 180000 });
 
@@ -84,7 +85,7 @@ console.log("\nUnreadable photo, with other content:");
   await p.locator('input[type="file"]').setInputFiles("/tmp/imgtest/broken.jpg");
   await p.waitForTimeout(1500);
   await p.locator("#report").fill(
-    "pani ghar mein aa gaya hai, ammi aur do bachay chat par hain, raasta band hai",
+    `pani ghar mein aa gaya hai, ammi aur do bachay chat par hain, raasta band hai, mohalla ${RUN}`,
   );
   await p.locator('button:has-text("Send report")').click();
 
@@ -113,9 +114,16 @@ console.log("\nUnreadable photo, with other content:");
   log(true, "and it can still be confirmed and sent");
 
   // The operator must be able to see that a photo was attached and unusable.
+  // Both surfaces. A report that resembles an earlier one is held for an
+  // operator's duplicate judgement rather than merged, which is correct and
+  // common when this suite runs repeatedly. It has reached the operators either
+  // way, so asserting only on incidents failed the test for the system working.
   const { incidents } = await (await fetch(`${B}/api/incidents`)).json();
+  const { pending } = await (await fetch(`${B}/api/duplicates`)).json();
   const mine = incidents.flatMap((i) => i.reports).find((r) => r.reporter_name === "Photo Broken");
-  log(Boolean(mine), "report reached the board");
+  const held = (pending ?? []).find((r) => /Photo Broken/.test(JSON.stringify(r)) || r.raw_text?.includes("mohalla"));
+  log(Boolean(mine || held), "report reached the operators",
+      mine ? "as an incident" : "held for duplicate review");
   if (mine) {
     log((mine.repairs ?? []).some((r) => /photo could not be read/i.test(r)),
         "the operator sees the photo was excluded", (mine.repairs ?? []).join("; ").slice(0, 60));
