@@ -51,6 +51,16 @@ export type OpsStrings = {
 
   needsJudgement: string;
   needsJudgementWhy: string;
+  needsReading: string;
+  needsReadingWhy: string;
+  nothingReadable: string;
+  whatItSays: string;
+  whatItSaysPlaceholder: string;
+  readingIsYours: string;
+  readAndEnter: string;
+  createFromReading: string;
+  notAnEmergency: string;
+  orderedBy: string;
   resembles: string;
   sameIncident: string;
   separateEmergency: string;
@@ -138,6 +148,19 @@ const en: OpsStrings = {
   needsJudgement: "Needs your judgement",
   needsJudgementWhy:
     "These reports resemble an existing incident, but not closely enough to link automatically. They are held rather than merged, because a wrong merge hides an emergency.",
+  needsReading: "Could not be read automatically",
+  needsReadingWhy:
+    "Someone sent these and the model could not understand them. The recording and the photo are intact, so a person can. Nothing here has been interpreted yet, and nothing is on the board until you read it.",
+  nothingReadable: "Nothing was attached that can be read. Contact the reporter if you have a number.",
+  whatItSays: "What it says",
+  whatItSaysPlaceholder: "Write what you heard or saw, in your own words.",
+  readingIsYours:
+    "This becomes the incident, recorded as your reading rather than the system's. The original report is kept exactly as it was sent.",
+  readAndEnter: "Read it and enter what it says",
+  createFromReading: "Create incident from this",
+  notAnEmergency: "Not an emergency",
+  orderedBy:
+    "Ordered by how many urgency indicators are present and how many reports mention them. It is a scanning aid, not a response priority: that is yours to decide.",
   resembles: "Resembles",
   sameIncident: "Same incident",
   separateEmergency: "This is a separate emergency",
@@ -223,6 +246,19 @@ const ur: OpsStrings = {
   needsJudgement: "آپ کے فیصلے کی ضرورت",
   needsJudgementWhy:
     "یہ اطلاعات کسی موجودہ واقعے سے ملتی جلتی ہیں، مگر اتنی نہیں کہ خودکار طور پر جوڑ دی جائیں۔ انہیں روکا گیا ہے، کیونکہ غلط جوڑ ایک ہنگامی صورتحال چھپا دیتا ہے۔",
+  needsReading: "خودکار طور پر پڑھی نہیں جا سکیں",
+  needsReadingWhy:
+    "یہ اطلاعات کسی نے بھیجی ہیں مگر نظام انہیں سمجھ نہیں سکا۔ آواز اور تصویر محفوظ ہیں، اس لیے ایک انسان انہیں پڑھ سکتا ہے۔ جب تک آپ انہیں نہ پڑھیں، یہ بورڈ پر نہیں آئیں گی۔",
+  nothingReadable: "کوئی ایسی چیز منسلک نہیں جو پڑھی جا سکے۔ اگر نمبر موجود ہے تو رابطہ کریں۔",
+  whatItSays: "اس میں کیا کہا گیا ہے",
+  whatItSaysPlaceholder: "جو آپ نے سنا یا دیکھا، اپنے الفاظ میں لکھیں۔",
+  readingIsYours:
+    "یہی واقعہ بنے گا، اور یہ آپ کی پڑھت کے طور پر درج ہوگا، نظام کی نہیں۔ اصل اطلاع جوں کی توں محفوظ رہے گی۔",
+  readAndEnter: "پڑھ کر تفصیل درج کریں",
+  createFromReading: "اس سے واقعہ بنائیں",
+  notAnEmergency: "یہ ہنگامی صورتحال نہیں",
+  orderedBy:
+    "ترتیب اس بنیاد پر ہے کہ کتنی ہنگامی علامات موجود ہیں اور کتنی اطلاعات ان کی تصدیق کرتی ہیں۔ یہ صرف دیکھنے میں آسانی کے لیے ہے، ترجیح کا فیصلہ آپ کا ہے۔",
   resembles: "مشابہت",
   sameIncident: "یہی واقعہ ہے",
   separateEmergency: "یہ الگ ہنگامی صورتحال ہے",

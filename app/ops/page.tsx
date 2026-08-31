@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { TriagePanel, type Unreadable } from "./TriagePanel";
 import Mark from "../Mark";
 import IncidentMap from "./IncidentMap";
 import IncidentDetail from "./IncidentDetail";
@@ -66,6 +67,8 @@ export default function OpsBoard() {
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [pending, setPending] = useState<PendingDup[]>([]);
+  // Reports the model could not read, waiting for a person to read them.
+  const [unreadable, setUnreadable] = useState<Unreadable[]>([]);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [reassigning, setReassigning] = useState<string | null>(null);
@@ -81,11 +84,17 @@ export default function OpsBoard() {
 
   const load = useCallback(async () => {
     try {
-      const [a, b] = await Promise.all([fetch("/api/incidents"), fetch("/api/duplicates")]);
+      const [a, b, c] = await Promise.all([
+        fetch("/api/incidents"),
+        fetch("/api/duplicates"),
+        fetch("/api/triage"),
+      ]);
       const inc = await a.json();
       const dup = await b.json();
+      const tri = await c.json();
       setIncidents(inc.incidents ?? []);
       setPending(dup.pending ?? []);
+      setUnreadable(tri.reports ?? []);
       setErr(null);
     } catch {
       setErr("Could not reach the server.");
@@ -293,6 +302,15 @@ export default function OpsBoard() {
           </div>
         ) : null}
 
+        <TriagePanel
+          items={unreadable}
+          t={t}
+          lang={lang}
+          operator={operator}
+          onDone={load}
+          timeAgo={timeAgo}
+        />
+
         {pending.length ? (
           <section className="mb-6 rounded-2xl border border-critical/40 bg-critical/5 p-5">
             <h2 className={`${t.face} text-sm font-semibold text-red-300`}>
@@ -370,6 +388,14 @@ export default function OpsBoard() {
               <li className={`${t.face} px-1 text-xs text-paper-soft`}>
                 {t.showingCount(mine.length, districtName(identity.district, lang === "ur"), elsewhere)}
               </li>
+            ) : null}
+
+            {/* The board has always been sorted and never admitted it. An
+                operator scanning from the top is being steered by something,
+                and they are entitled to know by what, and that it is not a
+                judgement about who to help first. */}
+            {mine.length > 1 ? (
+              <li className={`${t.face} px-1 text-xs text-paper-soft`}>{t.orderedBy}</li>
             ) : null}
 
             {/* The card carries only what decides whether to act. Everything else

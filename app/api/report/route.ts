@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import { extractReport, clarificationQuestions } from "@/lib/extract";
-import { insertReport, updateReport, getReport, id } from "@/lib/db";
+import { insertReport, updateReport, getReport, getReportByClientKey, id } from "@/lib/db";
 import { saveUpload } from "@/lib/media";
 
 export const runtime = "nodejs";
@@ -32,6 +32,33 @@ export async function POST(req: NextRequest) {
   // who filled nothing in is still a report.
   // Sent from the outbox after connectivity returned, rather than composed live.
   const queuedOffline = form.get("queued_offline") === "1";
+  const clientKey = (form.get("client_key") as string | null)?.trim().slice(0, 64) || null;
+
+  /**
+   * A repeat of a send whose response the phone never saw.
+   *
+   * Returned rather than re-extracted: the report is already here, the media is
+   * already on disk, and running the model again would spend a second call and
+   * risk a different reading of the same recording. What the caller needs is the
+   * id, so that it can finish confirming the report it already sent.
+   */
+  if (clientKey) {
+    const existing = getReportByClientKey(clientKey);
+    if (existing) {
+      const prior = existing.extraction_json
+        ? (JSON.parse(existing.extraction_json) as unknown)
+        : null;
+      return NextResponse.json({
+        report_id: existing.id,
+        extraction: prior,
+        questions: [],
+        repairs: existing.repairs_json ? JSON.parse(existing.repairs_json) : [],
+        image_dropped: false,
+        latency_ms: existing.latency_ms,
+        resumed: true,
+      });
+    }
+  }
   const reporterId = (form.get("reporter_id") as string | null)?.trim().slice(0, 64) || null;
   const reporterName = (form.get("reporter_name") as string | null)?.trim().slice(0, 120) || null;
   const reporterPhone = (form.get("reporter_phone") as string | null)?.replace(/[^\d+ -]/g, "").trim().slice(0, 20) || null;
@@ -70,6 +97,7 @@ export async function POST(req: NextRequest) {
     reporter_name: reporterName,
     reporter_phone: reporterPhone,
     queued_offline: queuedOffline ? 1 : 0,
+    client_key: clientKey,
   });
 
   let result = await extractReport({ text, audioPath, imagePath, locationText });

@@ -1,3 +1,5 @@
+import { authoriseOpsRequests } from "./ops-session.mjs";
+
 import { chromium } from "playwright";
 
 /**
@@ -14,6 +16,9 @@ import { chromium } from "playwright";
  */
 
 const B = process.env.BASE ?? "http://localhost:3300";
+
+// The operator endpoints are behind the control-room passphrase.
+await authoriseOpsRequests(B);
 const RUN = Math.random().toString(36).slice(2, 7);
 const out = [];
 const log = (ok, m, x = "") => {
@@ -133,6 +138,142 @@ console.log("\nAfter closing the tab and getting signal back:");
   await p2.screenshot({ path: "shots/offline-drained.png", fullPage: true });
 }
 
+// ---------- a failed confirmation must not lose the report ----------
+//
+// Sending is two calls: the upload, then the confirmation that turns a draft
+// into something an operator can see. This previously ignored whether the
+// second succeeded and deleted the phone's copy regardless, so a confirmation
+// that failed left the server holding an invisible draft and the reporter
+// holding nothing. It was the only path in the app that could lose a report
+// outright, and this suite passed the whole time because it only ever drove the
+// case where both calls worked.
+console.log("\nWhen the server accepts the upload but the confirmation fails:");
+{
+  const RUN2 = Math.random().toString(36).slice(2, 7);
+  const ctx2 = await b.newContext({
+    viewport: { width: 390, height: 844 },
+    permissions: [],
+    locale: "en-PK",
+  });
+  const p3 = await ctx2.newPage();
+  p3.on("pageerror", (e) => console.log("  PAGE ERROR:", e.message.slice(0, 100)));
+
+  await p3.goto(B, { waitUntil: "networkidle", timeout: 120000 });
+  await p3.waitForTimeout(1200);
+  await p3.locator('button:has-text("English")').click();
+  await p3.waitForTimeout(500);
+  await p3.locator('input[type="text"]').first().fill("Confirm Failure Test");
+  await p3.locator('button:has-text("Not now")').click();
+  await p3.waitForTimeout(1500);
+
+  await ctx2.setOffline(true);
+  await p3.locator("#report").fill(`pani bohat tez aa raha hai, ${RUN2} mohalla, madad chahiye`);
+  await p3.locator('button:has-text("Send report")').click();
+  await p3.waitForSelector("text=/saved|No internet/i", { timeout: 60000 }).catch(() => {});
+
+  // Back online, but the confirmation call is broken.
+  let confirmAttempts = 0;
+  await ctx2.route("**/api/report/confirm", async (route) => {
+    confirmAttempts++;
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: '{"error":"down"}',
+    });
+  });
+  await ctx2.setOffline(false);
+  await p3.reload({ waitUntil: "networkidle", timeout: 90000 });
+  // Long enough for the upload and its extraction to finish and the confirm to fail.
+  await p3.waitForTimeout(50000);
+
+  const held = await p3.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const r = indexedDB.open("amansignal", 1);
+        r.onsuccess = () => {
+          const g = r.result.transaction("outbox", "readonly").objectStore("outbox").getAll();
+          g.onsuccess = () => resolve(g.result);
+          g.onerror = () => resolve([]);
+        };
+        r.onerror = () => resolve([]);
+      }),
+  );
+  log(confirmAttempts > 0, "the confirmation was genuinely attempted", `${confirmAttempts} attempts`);
+  log(held.length === 1, "the report is still on the phone, not deleted", `${held.length} queued`);
+  log(
+    Boolean(held[0]?.serverReportId),
+    "and it remembers the id the server gave it, so a retry resumes rather than restarts",
+    held[0]?.serverReportId ?? "none",
+  );
+
+  // Now let it through. The retry must finish the report already uploaded
+  // rather than send a second copy of it.
+  console.log("\nAnd when the confirmation works on the next attempt:");
+  await ctx2.unroute("**/api/report/confirm");
+  await p3.reload({ waitUntil: "networkidle", timeout: 90000 });
+  await p3
+    .waitForFunction(
+      () =>
+        new Promise((resolve) => {
+          const r = indexedDB.open("amansignal", 1);
+          r.onsuccess = () => {
+            const g = r.result.transaction("outbox", "readonly").objectStore("outbox").getAll();
+            g.onsuccess = () => resolve(g.result.length === 0);
+            g.onerror = () => resolve(false);
+          };
+          r.onerror = () => resolve(false);
+        }),
+      { timeout: 90000, polling: 2000 },
+    )
+    .catch(() => {});
+
+  const drained = await p3.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const r = indexedDB.open("amansignal", 1);
+        r.onsuccess = () => {
+          const g = r.result.transaction("outbox", "readonly").objectStore("outbox").getAll();
+          g.onsuccess = () => resolve(g.result.length);
+          g.onerror = () => resolve(-1);
+        };
+        r.onerror = () => resolve(-1);
+      }),
+  );
+  log(drained === 0, "the report finally sends", `${drained} left`);
+
+  /**
+   * Counted from the reporter's own record rather than the operator's.
+   *
+   * The board only lists reports that were confirmed, so counting there passed
+   * while a failed attempt sat behind it as an orphaned draft: uploaded, never
+   * confirmed, listed nowhere, indistinguishable from the report having worked.
+   * The reporter's view is the only surface that sees every attempt, which makes
+   * it the only place this can be asked honestly.
+   */
+  const reporterId = await p3.evaluate(() => {
+    try {
+      return JSON.parse(localStorage.getItem("amansignal.profile") ?? "{}").reporterId ?? null;
+    } catch {
+      return null;
+    }
+  });
+  log(Boolean(reporterId), "the reporter has an id to check against", reporterId ?? "none");
+
+  // This browser context is fresh, so every report under this reporter id
+  // belongs to this one test and can be counted without a nonce.
+  const mine = await (await fetch(`${B}/api/my-reports?reporter_id=${reporterId}`)).json();
+  const all = mine.reports ?? [];
+  log(all.length === 1, "exactly one report exists, not one per attempt", `${all.length} reports`);
+  log(
+    !all.some((r) => r.state === "not_sent"),
+    "and no half-sent attempt is left behind as a draft nobody will ever read",
+    all.map((r) => r.state).join(",") || "none",
+  );
+
+  await ctx2.close();
+}
+
 await b.close();
-console.log(`\n${out.filter(Boolean).length}/${out.length} passed`);
+console.log(`
+${out.filter(Boolean).length}/${out.length} passed`);
 process.exit(out.every(Boolean) ? 0 : 1);

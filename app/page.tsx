@@ -285,7 +285,19 @@ export default function CitizenIntake() {
     drain();
     const onOnline = () => drain();
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
+    /**
+     * Also on a timer, because the two events are not enough on their own.
+     * An attempt that fails, or that is skipped because another page was
+     * already sending, has nothing to wake it again: navigator.onLine does not
+     * fire when a connection goes from unusable to usable, which on a damaged
+     * network is most of the recoveries. Without this a report can sit in the
+     * outbox with the app open and the signal back.
+     */
+    const timer = setInterval(drain, 30000);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      clearInterval(timer);
+    };
   }, [drain]);
 
   const startComposing = useCallback(() => {

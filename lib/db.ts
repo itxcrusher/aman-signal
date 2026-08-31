@@ -84,6 +84,11 @@ const MIGRATIONS: Record<string, Record<string, string>> = {
     // offline for, so the board must show it as unverified by the person who
     // sent it rather than implying they checked it.
     queued_offline: "INTEGER",
+    // An id the phone generates before it uploads, so a retry after a lost
+    // response can be recognised as the same report rather than becoming a
+    // second one. Only queued reports carry it; a live submission has a
+    // response to rely on and never retries blind.
+    client_key: "TEXT",
   },
   incidents: {
     assigned_at: "INTEGER",
@@ -145,6 +150,7 @@ export type ReportRow = {
   citizen_safe: number | null;
   citizen_safe_at: number | null;
   queued_offline: number | null;
+  client_key: string | null;
   extraction_json: string | null;
   repairs_json: string | null;
   clarifications_json: string | null;
@@ -196,11 +202,11 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
     .prepare(
       `INSERT INTO reports (id, created_at, status, incident_id, raw_text, audio_path,
         image_path, lat, lon, accuracy_m, location_text, reporter_id, reporter_name,
-        reporter_phone, pin_adjusted, queued_offline, extraction_json, repairs_json,
+        reporter_phone, pin_adjusted, queued_offline, client_key, extraction_json, repairs_json,
         clarifications_json, dedup_json, model, latency_ms)
        VALUES (@id, @created_at, @status, @incident_id, @raw_text, @audio_path,
         @image_path, @lat, @lon, @accuracy_m, @location_text, @reporter_id, @reporter_name,
-        @reporter_phone, @pin_adjusted, @queued_offline, @extraction_json, @repairs_json,
+        @reporter_phone, @pin_adjusted, @queued_offline, @client_key, @extraction_json, @repairs_json,
         @clarifications_json, @dedup_json, @model, @latency_ms)`,
     )
     .run({
@@ -218,6 +224,7 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
       reporter_phone: null,
       pin_adjusted: null,
       queued_offline: null,
+      client_key: null,
       extraction_json: null,
       repairs_json: null,
       clarifications_json: null,
@@ -228,6 +235,21 @@ export function insertReport(r: Partial<ReportRow> & { id: string; status: strin
     });
 }
 
+/**
+ * Find a report by the key the phone generated for it.
+ *
+ * This is what makes a queued send safe to repeat. A phone that uploads a report
+ * and never sees the response cannot know whether it arrived, and the honest
+ * choices are to send again or to give up on it; sending again is right, and
+ * this is what stops that costing a duplicate incident and an orphaned draft
+ * that no operator would ever be shown.
+ */
+export function getReportByClientKey(key: string): ReportRow | undefined {
+  return db().prepare("SELECT * FROM reports WHERE client_key = ?").get(key) as
+    | ReportRow
+    | undefined;
+}
+
 export function getReport(rid: string): ReportRow | undefined {
   return db().prepare("SELECT * FROM reports WHERE id = ?").get(rid) as ReportRow | undefined;
 }
@@ -235,7 +257,7 @@ export function getReport(rid: string): ReportRow | undefined {
 /** Field names are whitelisted against the table to keep interpolation safe. */
 const REPORT_FIELDS = new Set([
   "status", "incident_id", "raw_text", "audio_path", "image_path", "lat", "lon",
-  "accuracy_m", "location_text", "pin_adjusted", "queued_offline", "extraction_json", "repairs_json", "provenance_json",
+  "accuracy_m", "location_text", "pin_adjusted", "queued_offline", "client_key", "extraction_json", "repairs_json", "provenance_json",
   "clarifications_json", "dedup_json", "model", "latency_ms",
 ]);
 
@@ -259,7 +281,17 @@ export function audit(
     .run(Date.now(), incidentId, actor, action, detail ?? null);
 }
 
-export function createIncident(e: Extraction, lat: number | null, lon: number | null) {
+export function createIncident(
+  e: Extraction,
+  lat: number | null,
+  lon: number | null,
+  /**
+   * Who did the interpreting. Normally the model, but an operator reading a
+   * report the model could not parse is authoring that reading themselves, and
+   * the audit trail must not credit a machine for a human's judgement.
+   */
+  actor = "ai",
+) {
   const iid = id();
   const now = Date.now();
   const district = districtFor(lat, lon);
@@ -269,7 +301,7 @@ export function createIncident(e: Extraction, lat: number | null, lon: number | 
        VALUES (?,?,?,?,?,?,?,?,NULL,?)`,
     )
     .run(iid, now, now, "new", e.incident_type, lat, lon, e.english_summary, district);
-  audit(iid, "ai", "incident_created", `type=${e.incident_type}${district ? ` district=${district}` : ""}`);
+  audit(iid, actor, "incident_created", `type=${e.incident_type}${district ? ` district=${district}` : ""}`);
   return iid;
 }
 
@@ -283,6 +315,33 @@ export function listIncidents(): IncidentRow[] {
 export function pendingDuplicates(): ReportRow[] {
   return db()
     .prepare("SELECT * FROM reports WHERE status = 'possible_duplicate' ORDER BY created_at DESC")
+    .all() as ReportRow[];
+}
+
+/**
+ * Reports the model could not read, which no other surface would ever show.
+ *
+ * A failed extraction leaves the report at 'draft' with its audio and photo
+ * already saved. Every operator view queries incidents, and a draft has none, so
+ * until this existed those reports were written to disk and seen by nobody: a
+ * voice note recorded in a flood, kept perfectly, and invisible. The evidence is
+ * intact and a person can read it, so the answer is to put it in front of one
+ * rather than to discard it.
+ *
+ * Only failures, never ordinary drafts. A report awaiting its confirmation
+ * screen is mid-flow and belongs to the reporter; showing those would fill the
+ * board with reports nobody has finished writing.
+ *
+ * Oldest first: here, unlike the incident board, waiting time is the whole
+ * measure of urgency, because nothing has been read yet.
+ */
+export function unreadableReports(): ReportRow[] {
+  return db()
+    .prepare(
+      `SELECT * FROM reports
+       WHERE status = 'draft' AND repairs_json LIKE '%"failed:%'
+       ORDER BY created_at ASC`,
+    )
     .all() as ReportRow[];
 }
 
