@@ -5,6 +5,7 @@
 #
 # USAGE (on the server, as a sudo-capable user)
 #   export DASHSCOPE_API_KEY=sk-...
+#   export OPS_PASSPHRASE=...                          # opens the operator board
 #   export AMANSIGNAL_DOMAIN=amansignal.example.com     # must already resolve here
 #   export CERTBOT_EMAIL=you@example.com
 #   sudo -E bash deploy/provision.sh
@@ -23,6 +24,12 @@ set -euo pipefail
 SKIP_TLS="${AMANSIGNAL_SKIP_TLS:-0}"
 
 : "${DASHSCOPE_API_KEY:?set DASHSCOPE_API_KEY}"
+# Required, and deliberately not defaulted. The operator board carries
+# reporters' names, phone numbers, photographs and voice recordings, and a
+# deployment that starts without a passphrase would serve all of it to anyone
+# who knew the path. The app itself also refuses rather than opening up, so
+# skipping this produces a board nobody can use, not a board anyone can.
+: "${OPS_PASSPHRASE:?set OPS_PASSPHRASE, the control-room passphrase for /ops}"
 if [[ "$SKIP_TLS" != "1" ]]; then
   : "${AMANSIGNAL_DOMAIN:?set AMANSIGNAL_DOMAIN, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
   : "${CERTBOT_EMAIL:?set CERTBOT_EMAIL, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
@@ -69,6 +76,7 @@ docker volume create "$VOLUME" >/dev/null
 docker run -d --name "$CONTAINER" \
   -p 127.0.0.1:3000:3000 \
   -e DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" \
+  -e OPS_PASSPHRASE="$OPS_PASSPHRASE" \
   -v "$VOLUME":/data \
   --restart unless-stopped \
   amansignal >/dev/null
