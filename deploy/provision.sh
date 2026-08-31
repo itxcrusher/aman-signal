@@ -9,13 +9,24 @@
 #   export CERTBOT_EMAIL=you@example.com
 #   sudo -E bash deploy/provision.sh
 #
-# TLS is not optional: browsers refuse microphone and geolocation on plain HTTP,
-# so an IP-only deployment silently loses voice and location capture.
+# TLS is not optional for a real deployment: browsers refuse microphone and
+# geolocation on plain HTTP, so an IP-only host silently loses voice and location
+# capture, which is most of this product.
+#
+# AMANSIGNAL_SKIP_TLS=1 exists for the window before DNS resolves. DNS here is
+# Terraform-managed in crusher-infra and lands on its own schedule, so this lets
+# the app be deployed and exercised over the host's IP meanwhile, then re-run
+# without the flag to add the certificate. It is a staging state, never a
+# finished one: leave a deployment here and voice reporting does not work.
 set -euo pipefail
 
+SKIP_TLS="${AMANSIGNAL_SKIP_TLS:-0}"
+
 : "${DASHSCOPE_API_KEY:?set DASHSCOPE_API_KEY}"
-: "${AMANSIGNAL_DOMAIN:?set AMANSIGNAL_DOMAIN}"
-: "${CERTBOT_EMAIL:?set CERTBOT_EMAIL}"
+if [[ "$SKIP_TLS" != "1" ]]; then
+  : "${AMANSIGNAL_DOMAIN:?set AMANSIGNAL_DOMAIN, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
+  : "${CERTBOT_EMAIL:?set CERTBOT_EMAIL, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
+fi
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CONTAINER=amansignal
@@ -27,6 +38,10 @@ apt-get update -qq
 apt-get install -y -qq docker.io nginx certbot python3-certbot-nginx curl >/dev/null
 systemctl enable --now docker >/dev/null
 
+if [[ "$SKIP_TLS" == "1" ]]; then
+  echo "==> AMANSIGNAL_SKIP_TLS=1: serving plain HTTP, no certificate"
+  echo "    Voice and location will NOT work until this is re-run with a domain."
+else
 echo "==> Checking DNS before requesting a certificate"
 resolved="$(getent hosts "$AMANSIGNAL_DOMAIN" | awk '{print $1}' | head -1 || true)"
 public_ip="$(curl -fsS --max-time 10 https://api.ipify.org || true)"
@@ -41,6 +56,7 @@ if [[ -n "$public_ip" && "$resolved" != "$public_ip" ]]; then
   exit 1
 fi
 echo "    $AMANSIGNAL_DOMAIN -> $resolved (matches this host)"
+fi
 
 echo "==> Building the image"
 cd "$REPO_DIR"
@@ -75,7 +91,9 @@ echo "==> Configuring nginx"
 cat >/etc/nginx/sites-available/amansignal <<NGINX
 server {
     listen 80;
-    server_name ${AMANSIGNAL_DOMAIN};
+    # Catch-all while no domain is pointed here yet; certbot rewrites this to the
+    # real name when TLS is added.
+    server_name ${AMANSIGNAL_DOMAIN:-_};
 
     # Voice notes and photos; the app caps individual files at 12MB.
     client_max_body_size 25M;
@@ -96,6 +114,21 @@ ln -sf /etc/nginx/sites-available/amansignal /etc/nginx/sites-enabled/amansignal
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
+
+if [[ "$SKIP_TLS" == "1" ]]; then
+  IP="$(curl -fsS --max-time 10 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+  echo
+  echo "Deployed over plain HTTP at http://${IP}"
+  curl -fsS "http://127.0.0.1:3000/api/health" || echo "health check failed"
+  echo
+  echo "Citizen intake:   http://${IP}/"
+  echo "Operations board: http://${IP}/ops"
+  echo
+  echo "NOT FINISHED. A browser gives no microphone and no geolocation on plain"
+  echo "HTTP, so voice reporting and location capture are both dead here. Point"
+  echo "DNS at this host, then re-run with AMANSIGNAL_DOMAIN and CERTBOT_EMAIL."
+  exit 0
+fi
 
 echo "==> Obtaining a certificate"
 certbot --nginx -d "$AMANSIGNAL_DOMAIN" \
