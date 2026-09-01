@@ -59,6 +59,8 @@ export type Incident = {
   locations: string[];
   signal: number;
   audit: { at: number; actor: string; action: string; detail: string | null }[];
+  /** What the control room has told the reporter, and whether they have seen it. */
+  messages: { at: number; body: string; actor: string; seen: boolean }[];
   reports: Report[];
 };
 

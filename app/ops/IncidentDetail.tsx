@@ -38,6 +38,11 @@ export default function IncidentDetail({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Answering the reporter, which is a different act from editing the incident:
+  // one changes what we believe, the other changes what they know.
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const panel = useRef<HTMLDivElement | null>(null);
 
   const [summary, setSummary] = useState(incident.summary ?? "");
@@ -404,6 +409,83 @@ export default function IncidentDetail({
                 </li>
               ))}
             </ul>
+          </section>
+
+          {/* Closing the loop back to the person who reported it. Placed above
+              the audit trail because it is a thing to do, not a thing to read. */}
+          <section>
+            <p className={`${t.face} mb-1 text-xs uppercase tracking-wide text-paper-soft`}>
+              {t.messageReporter}
+            </p>
+            <p className={`${t.face} mb-3 text-xs leading-relaxed text-paper-soft`}>
+              {t.messageReporterWhy}
+            </p>
+
+            {incident.messages.length ? (
+              <ul className="mb-3 space-y-2">
+                {incident.messages.map((m, i) => (
+                  <li key={i} className="rounded-lg bg-surface-2 p-3">
+                    <p className="text-sm text-paper" dir="auto">
+                      {m.body}
+                    </p>
+                    <p className="mono mt-1 text-xs text-paper-soft">
+                      {m.actor} &middot; {when(m.at)} &middot;{" "}
+                      <span className={m.seen ? "text-ok" : "text-paper-soft"}>
+                        {m.seen ? t.seenByReporter : t.notSeenYet}
+                      </span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <textarea
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                setSent(false);
+              }}
+              rows={2}
+              dir="auto"
+              placeholder={t.messagePlaceholder}
+              className="w-full rounded-lg border border-line bg-surface-2 p-2 text-sm text-paper"
+            />
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                type="button"
+                disabled={sending || !message.trim()}
+                onClick={async () => {
+                  setSending(true);
+                  setErr(null);
+                  try {
+                    const res = await fetch(`/api/incidents/${incident.id}/message`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ operator, body: message.trim() }),
+                    });
+                    if (res.ok) {
+                      setMessage("");
+                      setSent(true);
+                      onSaved();
+                    } else {
+                      const j = await res.json().catch(() => ({}));
+                      // A message with no reachable reporter is reported as a
+                      // failure, because an operator who believes they have
+                      // answered someone will not try another way.
+                      setErr(res.status === 409 ? t.noReporterToMessage : (j.error ?? "failed"));
+                    }
+                  } catch {
+                    setErr("Could not reach the server.");
+                  } finally {
+                    setSending(false);
+                  }
+                }}
+                className={`${t.face} cursor-pointer rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                {t.sendMessage}
+              </button>
+              {sent ? <span className={`${t.face} text-sm text-ok`}>{t.messageSent}</span> : null}
+            </div>
           </section>
 
           <section>

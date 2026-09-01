@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { OPS_COOKIE, verifyToken } from "@/lib/ops-auth";
+import { OPS_COOKIE, FIELD_COOKIE, verifyToken } from "@/lib/ops-auth";
 
 /**
  * Everything an operator can reach is behind the passphrase; everything a
@@ -17,30 +17,42 @@ import { OPS_COOKIE, verifyToken } from "@/lib/ops-auth";
  * not a disaster line.
  */
 
-const PROTECTED = [
-  "/ops",
-  "/api/incidents",
-  "/api/duplicates",
-  "/api/triage",
+/**
+ * Two closed surfaces with two different credentials.
+ *
+ * The control room sees a district: every incident, the duplicate queue, the
+ * reports that could not be read, and the recordings behind them. A field crew
+ * sees the incidents handed to them and the numbers to call on the way. Giving
+ * both the same key would mean the second group holds the first group's access,
+ * so they are separated by credential rather than by a role flag that one
+ * request could claim.
+ */
+const GATES = [
+  { prefix: "/ops", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
+  { prefix: "/api/incidents", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
+  { prefix: "/api/duplicates", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
+  { prefix: "/api/triage", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
   // Media is served by report id, and those ids are only ever shown on the
   // board, but "the identifier is hard to guess" is not access control.
-  "/api/media",
+  { prefix: "/api/media", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
+  { prefix: "/field", cookie: FIELD_COOKIE, secret: "FIELD_PASSPHRASE", login: "/field/login" },
+  { prefix: "/api/field", cookie: FIELD_COOKIE, secret: "FIELD_PASSPHRASE", login: "/field/login" },
 ];
 
-const PUBLIC_WITHIN_OPS = ["/ops/login"];
+/** How someone with no session gets one. Gating these would lock everybody out. */
+const PUBLIC = ["/ops/login", "/field/login", "/api/ops/session", "/api/field/session"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isApi = pathname.startsWith("/api/");
 
-  if (PUBLIC_WITHIN_OPS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (PUBLIC.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return NextResponse.next();
   }
-  if (!PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return NextResponse.next();
-  }
+  const gate = GATES.find((g) => pathname === g.prefix || pathname.startsWith(`${g.prefix}/`));
+  if (!gate) return NextResponse.next();
 
-  const secret = process.env.OPS_PASSPHRASE;
+  const secret = process.env[gate.secret];
   /**
    * No passphrase configured means nobody gets in, rather than everybody.
    *
@@ -51,24 +63,24 @@ export async function proxy(req: NextRequest) {
    */
   if (!secret) {
     return isApi
-      ? NextResponse.json({ error: "operator access is not configured on this server" }, { status: 503 })
+      ? NextResponse.json({ error: `access is not configured on this server` }, { status: 503 })
       : new NextResponse(
-          "The operator board is not configured on this server: OPS_PASSPHRASE is unset.",
+          `This surface is not configured on this server: ${gate.secret} is unset.`,
           { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
         );
   }
 
-  if (await verifyToken(req.cookies.get(OPS_COOKIE)?.value, secret)) {
+  if (await verifyToken(req.cookies.get(gate.cookie)?.value, secret)) {
     return NextResponse.next();
   }
 
   // An API answers with a status its caller can act on; a page sends the person
   // somewhere they can do something about it.
   if (isApi) {
-    return NextResponse.json({ error: "operator sign-in required" }, { status: 401 });
+    return NextResponse.json({ error: "sign-in required" }, { status: 401 });
   }
   const to = req.nextUrl.clone();
-  to.pathname = "/ops/login";
+  to.pathname = gate.login;
   to.search = "";
   return NextResponse.redirect(to);
 }
@@ -86,5 +98,9 @@ export const config = {
     "/api/triage",
     "/api/triage/:path*",
     "/api/media/:path*",
+    "/field",
+    "/field/:path*",
+    "/api/field",
+    "/api/field/:path*",
   ],
 };

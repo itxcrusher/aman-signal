@@ -276,6 +276,20 @@ export default function OpsBoard() {
             >
               {t.change}
             </button>
+            {/* A shared machine in a control room is the normal case, and a
+                board left open on it is the whole exposure the passphrase was
+                added to prevent. Leaving is reloaded rather than routed, so the
+                proxy sees the cleared cookie. */}
+            <button
+              type="button"
+              onClick={async () => {
+                await fetch("/api/ops/session", { method: "DELETE" }).catch(() => {});
+                window.location.href = "/ops/login";
+              }}
+              className={`${t.face} rounded-lg px-3 py-2 text-sm text-paper-soft ring-1 ring-line transition-colors hover:text-paper`}
+            >
+              {t.signOut}
+            </button>
           </div>
         </div>
       </header>

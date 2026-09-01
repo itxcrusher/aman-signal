@@ -25,6 +25,16 @@ export type OpsStrings = {
   controlRoom: string;
   change: string;
   changeTeam: string;
+  signOut: string;
+  messageReporter: string;
+  messageReporterWhy: string;
+  messagePlaceholder: string;
+  sendMessage: string;
+  messageSent: string;
+  noReporterToMessage: string;
+  alreadyTold: string;
+  seenByReporter: string;
+  notSeenYet: string;
 
   setupIntro: string;
   yourName: string;
@@ -116,6 +126,17 @@ const en: OpsStrings = {
   controlRoom: "control room",
   change: "Change",
   changeTeam: "Change team",
+  signOut: "Sign out",
+  messageReporter: "Tell the reporter",
+  messageReporterWhy:
+    "Goes to everyone who reported this incident. A status changing to \"assigned\" is information; telling them a boat is coming and from which direction is an answer.",
+  messagePlaceholder: "e.g. A boat is on its way from the Ravi road side. Stay upstairs.",
+  sendMessage: "Send",
+  messageSent: "Sent",
+  noReporterToMessage: "Nobody who reported this can be messaged: no device id on any report.",
+  alreadyTold: "Already told them",
+  seenByReporter: "seen",
+  notSeenYet: "not seen yet",
 
   setupIntro:
     "This board shows the incidents for one district. Reports are reconciled into incidents automatically; every decision about them is yours.",
@@ -216,6 +237,17 @@ const ur: OpsStrings = {
   controlRoom: "کنٹرول روم",
   change: "تبدیل کریں",
   changeTeam: "ٹیم تبدیل کریں",
+  signOut: "باہر نکلیں",
+  messageReporter: "اطلاع دینے والے کو بتائیں",
+  messageReporterWhy:
+    "یہ ان سب کو جائے گا جنہوں نے یہ واقعہ رپورٹ کیا۔ حالت کا \"ٹیم مقرر\" ہو جانا صرف معلومات ہے؛ یہ بتانا کہ کشتی کس طرف سے آ رہی ہے، جواب ہے۔",
+  messagePlaceholder: "مثال: کشتی راوی روڈ کی طرف سے آ رہی ہے۔ اوپر والی منزل پر رہیں۔",
+  sendMessage: "بھیجیں",
+  messageSent: "بھیج دیا گیا",
+  noReporterToMessage: "اس کی اطلاع دینے والے کو پیغام نہیں بھیجا جا سکتا: کسی اطلاع پر ڈیوائس کی شناخت موجود نہیں۔",
+  alreadyTold: "پہلے بتایا جا چکا ہے",
+  seenByReporter: "دیکھ لیا",
+  notSeenYet: "ابھی نہیں دیکھا",
 
   setupIntro:
     "یہ بورڈ ایک ضلع کی اطلاعات دکھاتا ہے۔ اطلاعات خودکار طور پر ایک واقعے میں جوڑ دی جاتی ہیں؛ ہر فیصلہ آپ کا ہے۔",

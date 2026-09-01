@@ -41,6 +41,10 @@ export default function MyReports({
 }) {
   const t = stringsFor(lang);
   const [reports, setReports] = useState<MyReport[] | null>(null);
+  // What the control room has said back. Kept at the top of this screen rather
+  // than attached to a report, because someone opening it is looking for one
+  // thing: has a human answered.
+  const [messages, setMessages] = useState<{ id: string; at: number; body: string; seen: boolean }[]>([]);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -59,7 +63,24 @@ export default function MyReports({
       if (!res.ok) throw new Error("failed");
       const json = await res.json();
       setReports(json.reports ?? []);
+      setMessages(json.messages ?? []);
       setFailed(false);
+
+      /**
+       * Marked seen only once they are actually on screen.
+       *
+       * A side effect of the fetch would have marked messages read whenever
+       * this list refreshed in the background, and the control room would then
+       * believe someone had read a message they never saw, which is worse than
+       * not knowing.
+       */
+      if ((json.messages ?? []).some((m: { seen: boolean }) => !m.seen)) {
+        fetch("/api/my-reports/seen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reporter_id: reporterId }),
+        }).catch(() => {});
+      }
     } catch {
       setFailed(true);
     }
@@ -219,6 +240,28 @@ export default function MyReports({
 
   return (
     <div className="space-y-3">
+      {messages.length ? (
+        <section
+          aria-live="polite"
+          className="rounded-2xl bg-ok/10 p-5 ring-1 ring-ok/40"
+        >
+          <p className={`${t.face} text-sm font-bold text-ok`}>{t.fromControlRoom}</p>
+          <ul className="mt-2 space-y-3">
+            {messages.map((m) => (
+              <li key={m.id}>
+                <p className={`${t.face} text-base leading-relaxed text-ink`} dir="auto">
+                  {m.body}
+                </p>
+                <p className={`${t.face} mt-0.5 text-xs text-ink-soft`}>{whenText(m.at)}</p>
+              </li>
+            ))}
+          </ul>
+          <p className={`${t.face} mt-3 text-xs leading-relaxed text-ink-soft`}>
+            {t.replyWithUpdate}
+          </p>
+        </section>
+      ) : null}
+
       {reports.map((r) => {
         const state = stateText(r);
         return (
@@ -268,7 +311,7 @@ export default function MyReports({
                     rows={3}
                     dir="auto"
                     placeholder={t.updatePlaceholder}
-                    className="mt-2 w-full rounded-xl border border-day-line bg-day p-4 text-base outline-none focus:border-brand"
+                    className={`${t.fieldFace} mt-2 w-full rounded-xl border border-day-line bg-day p-4 text-base outline-none focus:border-brand`}
                   />
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <button

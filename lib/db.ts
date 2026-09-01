@@ -52,6 +52,26 @@ const STATEMENTS = [
     action TEXT NOT NULL,
     detail TEXT
   )`,
+  /**
+   * Messages from a control room to the person who reported an incident.
+   *
+   * Separate from audit, which records what was decided, and from reports,
+   * which are what the citizen sent. This is the third thing: what a human
+   * said back to them. Addressed to a reporter rather than to an incident,
+   * because an incident can have several reporters and each of them is owed
+   * the answer individually.
+   */
+  `CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    incident_id TEXT NOT NULL,
+    reporter_id TEXT NOT NULL,
+    body TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    seen_at INTEGER
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_messages_reporter ON messages(reporter_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_incidents_assigned ON incidents(assigned_to)`,
   `CREATE INDEX IF NOT EXISTS idx_reports_incident ON reports(incident_id)`,
   `CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status)`,
 ];
@@ -303,6 +323,10 @@ export function createIncident(
     .run(iid, now, now, "new", e.incident_type, lat, lon, e.english_summary, district);
   audit(iid, actor, "incident_created", `type=${e.incident_type}${district ? ` district=${district}` : ""}`);
   return iid;
+}
+
+export function getIncident(iid: string): IncidentRow | undefined {
+  return db().prepare("SELECT * FROM incidents WHERE id = ?").get(iid) as IncidentRow | undefined;
 }
 
 export function listIncidents(): IncidentRow[] {
@@ -574,6 +598,101 @@ export function clearIncidentOverride(iid: string, actor: string): boolean {
   if (res.changes === 0) return false;
   audit(iid, actor, "incident_edit_cleared", "reverted to values derived from reports");
   return true;
+}
+
+export type MessageRow = {
+  id: string;
+  created_at: number;
+  incident_id: string;
+  reporter_id: string;
+  body: string;
+  actor: string;
+  seen_at: number | null;
+};
+
+/**
+ * Say something to the people who reported this incident.
+ *
+ * One row per distinct reporter rather than one per incident, so a message
+ * reaches each of them in their own list. Reports with no reporter id are
+ * skipped: there is nowhere to deliver to, and writing a message nobody can
+ * ever see would only make the audit trail look more helpful than it was.
+ */
+export function sendMessage(incidentId: string, body: string, actor: string): number {
+  const reporters = db()
+    .prepare(
+      "SELECT DISTINCT reporter_id FROM reports WHERE incident_id = ? AND reporter_id IS NOT NULL AND reporter_id != ''",
+    )
+    .all(incidentId) as { reporter_id: string }[];
+  if (!reporters.length) return 0;
+
+  const now = Date.now();
+  const stmt = db().prepare(
+    "INSERT INTO messages (id, created_at, incident_id, reporter_id, body, actor, seen_at) VALUES (?,?,?,?,?,?,NULL)",
+  );
+  for (const r of reporters) stmt.run(id(), now, incidentId, r.reporter_id, body, actor);
+
+  // Recorded as an action, because telling someone help is coming is a decision
+  // with consequences and has to be answerable for like any other.
+  audit(incidentId, actor, "message_sent", `to ${reporters.length} reporter(s)`);
+  return reporters.length;
+}
+
+export function messagesForReporter(reporterId: string): MessageRow[] {
+  return db()
+    .prepare("SELECT * FROM messages WHERE reporter_id = ? ORDER BY created_at DESC LIMIT 50")
+    .all(reporterId) as MessageRow[];
+}
+
+/** Marks what this reporter has now seen, so the board can tell. */
+export function markMessagesSeen(reporterId: string): number {
+  const res = db()
+    .prepare("UPDATE messages SET seen_at = ? WHERE reporter_id = ? AND seen_at IS NULL")
+    .run(Date.now(), reporterId);
+  return res.changes;
+}
+
+export function messagesForIncident(incidentId: string): MessageRow[] {
+  return db()
+    .prepare("SELECT * FROM messages WHERE incident_id = ? ORDER BY created_at ASC")
+    .all(incidentId) as MessageRow[];
+}
+
+/**
+ * What one field team has been handed.
+ *
+ * Matched case-insensitively on the trimmed name, because the team name is
+ * typed by an operator at assignment and typed again by a responder on their
+ * phone, and "Boat Team 3" not matching "boat team 3" would mean a team sent
+ * somewhere sees an empty screen and concludes nobody needs them.
+ *
+ * Resolved work stays visible for six hours rather than vanishing the moment it
+ * is closed: a team that has just marked something done should be able to see
+ * that it registered, and should be able to reopen the detail if they were
+ * wrong.
+ */
+export function incidentsForTeam(team: string): IncidentRow[] {
+  const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+  return db()
+    .prepare(
+      `SELECT * FROM incidents
+        WHERE lower(trim(assigned_to)) = lower(trim(?))
+          AND (status != 'resolved' OR updated_at >= ?)
+        ORDER BY updated_at DESC`,
+    )
+    .all(team, cutoff) as IncidentRow[];
+}
+
+/** Every team that currently has work, so a responder can pick rather than type. */
+export function teamsWithWork(): string[] {
+  const rows = db()
+    .prepare(
+      `SELECT DISTINCT assigned_to FROM incidents
+        WHERE assigned_to IS NOT NULL AND trim(assigned_to) != ''
+        ORDER BY assigned_to`,
+    )
+    .all() as { assigned_to: string }[];
+  return rows.map((r) => r.assigned_to);
 }
 
 export function auditFor(incidentId: string) {

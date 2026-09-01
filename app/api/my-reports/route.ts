@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { reportsByReporter } from "@/lib/db";
+import { reportsByReporter, messagesForReporter } from "@/lib/db";
 import type { Extraction } from "@/lib/schema";
 
 export const runtime = "nodejs";
@@ -23,7 +23,24 @@ export async function GET(req: NextRequest) {
 
   const rows = reportsByReporter(reporterId);
 
+  /**
+   * What the control room has said back to them.
+   *
+   * Returned alongside the reports rather than on a separate screen, because a
+   * message about an emergency is not correspondence to be checked later. It
+   * belongs next to the report it answers, where someone looking to see whether
+   * anyone is coming will actually find it.
+   */
+  const messages = messagesForReporter(reporterId).map((m) => ({
+    id: m.id,
+    at: m.created_at,
+    body: m.body,
+    incident_id: m.incident_id,
+    seen: m.seen_at !== null,
+  }));
+
   return NextResponse.json({
+    messages,
     reports: rows.map((r) => {
       const e: Extraction | null = r.extraction_json ? JSON.parse(r.extraction_json) : null;
       return {

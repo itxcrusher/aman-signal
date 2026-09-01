@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listIncidents, reportsFor, auditFor } from "@/lib/db";
+import { listIncidents, reportsFor, auditFor, messagesForIncident } from "@/lib/db";
 import { buildIncidentView, signalStrength } from "@/lib/incident";
 
 export const runtime = "nodejs";
@@ -30,6 +30,15 @@ export async function GET() {
       locations: view.locations,
       signal: signalStrength(view),
       audit: auditFor(inc.id),
+      // What has already been said to the reporter, and whether they have seen
+      // it. An operator about to send a second reassurance should be able to
+      // see the first one, and whether it landed.
+      messages: messagesForIncident(inc.id).map((m) => ({
+        at: m.created_at,
+        body: m.body,
+        actor: m.actor,
+        seen: m.seen_at !== null,
+      })),
       reports: view.reports.map((r, i) => ({
         id: r.id,
         created_at: r.created_at,

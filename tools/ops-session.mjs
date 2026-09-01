@@ -43,8 +43,14 @@ export async function authoriseOpsRequests(base) {
   const original = globalThis.fetch;
   globalThis.fetch = (input, init = {}) => {
     const url = typeof input === "string" ? input : (input?.url ?? "");
-    if (OPS_PATHS.some((p) => url.includes(p))) {
-      init = { ...init, headers: { ...(init.headers ?? {}), Cookie: cookie } };
+    // Never over an explicit one. A suite checking that some other credential
+    // is refused has to be able to send that credential; overwriting it here
+    // made such a test pass by silently substituting the operator's cookie,
+    // which is the most misleading way a security assertion can be green.
+    const given = init.headers ?? {};
+    const alreadySet = Object.keys(given).some((k) => k.toLowerCase() === "cookie");
+    if (!alreadySet && OPS_PATHS.some((p) => url.includes(p))) {
+      init = { ...init, headers: { ...given, Cookie: cookie } };
     }
     return original(input, init);
   };

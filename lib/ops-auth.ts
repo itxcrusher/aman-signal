@@ -26,6 +26,18 @@ export const SESSION_MS = 8 * 60 * 60 * 1000;
 
 export const OPS_COOKIE = "amansignal_ops";
 
+/**
+ * The field teams' own credential, deliberately not the control room's.
+ *
+ * A boat crew needs the incidents handed to them, with the address and the
+ * reporter's number so they can call ahead. They do not need the district's
+ * whole board, the duplicate queue, or the recordings of everyone who has
+ * reported anything today. Sharing one passphrase would hand them all of it,
+ * so the surfaces are separated by what they can reach rather than by a role
+ * flag on one session.
+ */
+export const FIELD_COOKIE = "amansignal_field";
+
 async function key(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "raw",
