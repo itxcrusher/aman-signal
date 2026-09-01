@@ -581,7 +581,7 @@ export default function CitizenIntake() {
                 rows={5}
                 dir="auto"
                 placeholder={t.composePlaceholder}
-                className="mt-3 w-full rounded-xl border border-day-line p-4 text-lg leading-relaxed outline-none focus:border-brand"
+                className={`${t.fieldFace} mt-3 w-full rounded-xl border border-day-line p-4 text-lg leading-relaxed outline-none focus:border-brand`}
               />
 
               <div className="mt-3 grid grid-cols-3 gap-2">
@@ -731,7 +731,7 @@ export default function CitizenIntake() {
                       dir="auto"
                       value={answers[q.field] ?? ""}
                       onChange={(e) => setAnswers((a) => ({ ...a, [q.field]: e.target.value }))}
-                      className="mt-2 w-full rounded-xl border border-day-line p-3 text-lg outline-none focus:border-brand"
+                      className={`${t.fieldFace} mt-2 w-full rounded-xl border border-day-line p-3 text-lg outline-none focus:border-brand`}
                     />
                   </div>
                 ))}

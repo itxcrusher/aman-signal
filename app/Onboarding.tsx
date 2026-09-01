@@ -154,7 +154,7 @@ export default function Onboarding({ onDone }: { onDone: (p: Profile) => void })
                   autoComplete="name"
                   dir="auto"
                   placeholder={t.namePlaceholder}
-                  className="mt-1 w-full rounded-xl border border-day-line bg-day px-4 py-3 text-base outline-none focus:ring-2 focus:ring-brand"
+                  className={`${t.fieldFace} mt-1 w-full rounded-xl border border-day-line bg-day px-4 py-3 text-base outline-none focus:ring-2 focus:ring-brand`}
                 />
               </label>
               <label className="block">

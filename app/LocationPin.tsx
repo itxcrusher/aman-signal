@@ -255,7 +255,7 @@ export default function LocationPin({
         }}
         dir="auto"
         rows={2}
-        className="mt-2 w-full rounded-xl border border-day-line bg-day p-4 text-base outline-none focus:border-brand"
+        className={`${t.fieldFace} mt-2 w-full rounded-xl border border-day-line bg-day p-4 text-base outline-none focus:border-brand`}
       />
 
       <div className="mt-2 flex flex-wrap items-center gap-2">

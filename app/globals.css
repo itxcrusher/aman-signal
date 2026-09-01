@@ -96,6 +96,20 @@ body {
   font-size: 1.0625em;
 }
 
+/* Nastaliq for a control someone types into.
+
+   Deliberately not .urdu: that class fixes direction to RTL, which is right for
+   prose we render and wrong for a box a person types into, because they may
+   answer in Roman Urdu or English and the field must follow what they actually
+   typed. Direction is left to dir="auto" on the element; this contributes the
+   face and the vertical room Nastaliq needs, and nothing else. */
+.urdu-field {
+  font-family: var(--font-urdu);
+  line-height: 2.4;
+  padding-block: 0.15em;
+  font-size: 1.0625em;
+}
+
 .urdu-ui {
   font-family: var(--font-urdu-ui);
   /* 2.3 is the documented floor for Nastaliq. Below roughly 2.0 the descenders of
@@ -136,6 +150,20 @@ body {
    rows would cost a dispatcher the density they scan by. */
 button, a, [role="button"], input, select, textarea {
   min-height: 56px;
+}
+
+/* Form controls do not inherit font-family. Browsers give them their own, and
+   the effect here was the worst possible one: every label, heading and button
+   rendered in Nastaliq while the box a citizen actually types their emergency
+   into fell back to a system Arabic face. Urdu set in Naskh reads as Arabic to
+   an Urdu reader, which is the exact failure this app's typography exists to
+   avoid, and it was happening in the single most important input on the screen.
+
+   Inherited rather than set per component, so a control added later cannot get
+   this wrong again. Only the family: size and weight stay with the control,
+   because a textarea and a heading should not be the same size. */
+input, select, textarea {
+  font-family: inherit;
 }
 
 .ops-surface button,

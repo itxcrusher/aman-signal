@@ -80,6 +80,13 @@ export type Strings = {
 
   understanding: string;
   understandingHint: string;
+  /* What a control room has said back to this person. The answer to reporting
+     into silence, which is the part of any reporting system people give up on. */
+  fromControlRoom: string;
+  replyWithUpdate: string;
+  /* The face for a control the person types into. Separate from `face` because
+     a typed field must follow the direction of whatever they actually wrote. */
+  fieldFace: string;
   /* The outbox. A report composed with no network is held, not lost, and the
      reporter is told so in terms of what happens next rather than what failed. */
   savedOffline: string;
@@ -247,6 +254,10 @@ const ur: Strings = {
 
   understanding: "آپ کی اطلاع پڑھی جا رہی ہے...",
   understandingHint: "اس میں چند سیکنڈ لگتے ہیں۔",
+  fieldFace: "urdu-field",
+  fromControlRoom: "کنٹرول روم کی طرف سے",
+  replyWithUpdate:
+    "جواب دینے کے لیے نیچے اپنی اطلاع میں مزید تفصیل شامل کریں: آواز، تصویر یا لکھ کر۔",
   savedOffline: "انٹرنیٹ نہیں ہے، آپ کی اطلاع محفوظ کر لی گئی ہے",
   savedOfflineHint: "جیسے ہی سگنل آئے گا، یہ خود بخود بھیج دی جائے گی۔ ایپ بند کر دیں تب بھی محفوظ رہے گی۔",
   pendingCount: (n) => `${n} اطلاع بھیجنا باقی ہے`,
@@ -407,6 +418,10 @@ const en: Strings = {
 
   understanding: "Reading your report...",
   understandingHint: "This takes a few seconds.",
+  fieldFace: "",
+  fromControlRoom: "From the control room",
+  replyWithUpdate:
+    "To reply, add an update to your report below: voice, a photo, or type it.",
   savedOffline: "No internet. Your report has been saved.",
   savedOfflineHint: "It will send itself as soon as you have signal. It stays saved even if you close the app.",
   pendingCount: (n) => `${n} report${n === 1 ? "" : "s"} waiting to send`,
