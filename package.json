@@ -21,7 +21,9 @@
     "verify:offline": "node tools/verify-offline.mjs",
     "verify:triage": "node tools/verify-triage.mjs",
     "verify:auth": "node tools/verify-auth.mjs",
-    "verify": "npm run verify:flows && npm run verify:ops && npm run verify:followup && npm run verify:no-gps && npm run verify:photo && npm run verify:offline && npm run verify:triage && npm run verify:auth"
+    "verify": "npm run verify:flows && npm run verify:ops && npm run verify:followup && npm run verify:no-gps && npm run verify:photo && npm run verify:offline && npm run verify:triage && npm run verify:auth && npm run verify:field && npm run verify:messages",
+    "verify:field": "node tools/verify-field.mjs",
+    "verify:messages": "node tools/verify-messages.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
