@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setIncidentStatus, audit, incidentsForTeam } from "@/lib/db";
+import { setIncidentStatus, audit, incidentsForTeam, markTeamMessagesSeen } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,7 @@ const FIELD_STATUSES = new Set(["responding", "resolved"]);
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
-  let body: { team?: string; status?: string; note?: string };
+  let body: { team?: string; status?: string; note?: string; seen?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -47,6 +47,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const actor = `field:${team}`;
   const note = body.note?.trim();
   const status = body.status?.trim();
+
+  // Acknowledging what the room told them. Its own call rather than a side
+  // effect of the crew's screen refreshing, so "seen" means somebody looked.
+  if (body.seen) {
+    return NextResponse.json({ id, seen: markTeamMessagesSeen(id, team) });
+  }
 
   if (!note && !status) {
     return NextResponse.json({ error: "nothing to record" }, { status: 400 });

@@ -27,16 +27,27 @@ import { OPS_COOKIE, FIELD_COOKIE, verifyToken } from "@/lib/ops-auth";
  * so they are separated by credential rather than by a role flag that one
  * request could claim.
  */
+const OPS = { cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE" };
+const FIELD = { cookie: FIELD_COOKIE, secret: "FIELD_PASSPHRASE" };
+
 const GATES = [
-  { prefix: "/ops", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
-  { prefix: "/api/incidents", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
-  { prefix: "/api/duplicates", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
-  { prefix: "/api/triage", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
-  // Media is served by report id, and those ids are only ever shown on the
-  // board, but "the identifier is hard to guess" is not access control.
-  { prefix: "/api/media", cookie: OPS_COOKIE, secret: "OPS_PASSPHRASE", login: "/ops/login" },
-  { prefix: "/field", cookie: FIELD_COOKIE, secret: "FIELD_PASSPHRASE", login: "/field/login" },
-  { prefix: "/api/field", cookie: FIELD_COOKIE, secret: "FIELD_PASSPHRASE", login: "/field/login" },
+  { prefix: "/ops", accept: [OPS], login: "/ops/login" },
+  { prefix: "/api/incidents", accept: [OPS], login: "/ops/login" },
+  { prefix: "/api/duplicates", accept: [OPS], login: "/ops/login" },
+  { prefix: "/api/triage", accept: [OPS], login: "/ops/login" },
+  /**
+   * Media takes either credential, and the route decides.
+   *
+   * A crew standing at the edge of a flooded street benefits more from the
+   * photograph than anyone at a desk does. But a field session must not be able
+   * to walk every recording in the district, so this is the one place where
+   * passing the gate is not the whole answer: the route requires a field caller
+   * to name their team and checks the incident is actually assigned to it.
+   * "The identifier is hard to guess" was never access control and still is not.
+   */
+  { prefix: "/api/media", accept: [OPS, FIELD], login: "/ops/login" },
+  { prefix: "/field", accept: [FIELD], login: "/field/login" },
+  { prefix: "/api/field", accept: [FIELD], login: "/field/login" },
 ];
 
 /** How someone with no session gets one. Gating these would lock everybody out. */
@@ -52,7 +63,8 @@ export async function proxy(req: NextRequest) {
   const gate = GATES.find((g) => pathname === g.prefix || pathname.startsWith(`${g.prefix}/`));
   if (!gate) return NextResponse.next();
 
-  const secret = process.env[gate.secret];
+  // Configured means at least one credential this surface accepts has a secret.
+  const configured = gate.accept.filter((c) => process.env[c.secret]);
   /**
    * No passphrase configured means nobody gets in, rather than everybody.
    *
@@ -61,17 +73,20 @@ export async function proxy(req: NextRequest) {
    * is exactly the one nobody is watching. It is loud and it is fixable in a
    * minute, which is what makes it the safe direction to fail in.
    */
-  if (!secret) {
+  if (!configured.length) {
+    const names = gate.accept.map((c) => c.secret).join(" or ");
     return isApi
-      ? NextResponse.json({ error: `access is not configured on this server` }, { status: 503 })
-      : new NextResponse(
-          `This surface is not configured on this server: ${gate.secret} is unset.`,
-          { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
-        );
+      ? NextResponse.json({ error: "access is not configured on this server" }, { status: 503 })
+      : new NextResponse(`This surface is not configured on this server: ${names} is unset.`, {
+          status: 503,
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        });
   }
 
-  if (await verifyToken(req.cookies.get(gate.cookie)?.value, secret)) {
-    return NextResponse.next();
+  for (const c of configured) {
+    if (await verifyToken(req.cookies.get(c.cookie)?.value, process.env[c.secret] as string)) {
+      return NextResponse.next();
+    }
   }
 
   // An API answers with a status its caller can act on; a page sends the person

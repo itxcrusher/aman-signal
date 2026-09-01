@@ -37,7 +37,9 @@ type Incident = {
   road_access: { value: string | null; disputed: string[] | null };
   contacts: { name: string | null; phone: string | null }[];
   said: { at: number; text: string | null }[];
+  evidence: { report_id: string; has_audio: boolean; has_image: boolean }[];
   told: { at: number; body: string }[];
+  orders: { at: number; body: string; actor: string; seen: boolean }[];
 };
 
 const TEAM_KEY = "amansignal.field.team";
@@ -87,6 +89,23 @@ export default function FieldBoard() {
       const json = await res.json();
       setTeams(json.teams ?? []);
       setIncidents(json.incidents ?? []);
+
+      /**
+       * Acknowledge orders once they are on screen, not when the list refreshes.
+       *
+       * This polls every twenty seconds. Marking seen inside the fetch would
+       * tell a control room a crew had read an instruction that nobody looked
+       * at, which is worse for them than not knowing.
+       */
+      for (const inc of json.incidents ?? []) {
+        if ((inc.orders ?? []).some((o: { seen: boolean }) => !o.seen)) {
+          fetch(`/api/field/${inc.id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ team, seen: true }),
+          }).catch(() => {});
+        }
+      }
     } catch {
       // Left as it was. A crew mid-response should keep the last known list on
       // screen rather than have it replaced by an error they cannot act on.
@@ -251,6 +270,22 @@ export default function FieldBoard() {
                       inc.status === "resolved" ? "opacity-60 ring-line" : "ring-line"
                     }`}
                   >
+                    {/* Above everything, because an instruction from the room
+                        outranks the report it is about: it is the most recent
+                        thing anyone knows and it may change where they go. */}
+                    {inc.orders.length ? (
+                      <div className="mb-3 rounded-lg bg-brand/15 p-3 ring-1 ring-brand/40">
+                        <p className={`${t.face} text-xs font-semibold text-brand-soft`}>
+                          {t.ordersFromRoom}
+                        </p>
+                        {inc.orders.map((o, i) => (
+                          <p key={i} className={`${t.face} mt-1 text-base text-paper`} dir="auto">
+                            {o.body}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+
                     <div className="flex items-center justify-between gap-2">
                       <span className={`${t.face} text-xs font-semibold text-brand`}>{status}</span>
                       <span className="mono text-xs text-paper-soft">
@@ -375,6 +410,35 @@ export default function FieldBoard() {
                           </a>
                         ))}
                     </div>
+
+                    {/* The evidence itself. A crew about to choose a vehicle can
+                        read a photograph of the water line faster than any
+                        field derived from it. Audio is not preloaded: this
+                        screen is opened on mobile data at the edge of a flood. */}
+                    {inc.evidence.length ? (
+                      <div className="mt-4 space-y-3">
+                        {inc.evidence.map((e) => (
+                          <div key={e.report_id}>
+                            {e.has_image ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={`/api/media/${e.report_id}?kind=image&team=${encodeURIComponent(team)}`}
+                                alt=""
+                                className="w-full rounded-lg border border-line"
+                              />
+                            ) : null}
+                            {e.has_audio ? (
+                              <audio
+                                controls
+                                preload="none"
+                                src={`/api/media/${e.report_id}?kind=audio&team=${encodeURIComponent(team)}`}
+                                className="mt-2 w-full"
+                              />
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     {inc.locations.length ? (
                       <p className={`${t.face} mt-2 text-xs text-paper-soft`} dir="auto">

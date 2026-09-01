@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import { getReport, mediaDir } from "@/lib/db";
+import { getReport, mediaDir, incidentsForTeam } from "@/lib/db";
+import { OPS_COOKIE, FIELD_COOKIE, verifyToken } from "@/lib/ops-auth";
 
 export const runtime = "nodejs";
 
@@ -21,9 +22,16 @@ export const runtime = "nodejs";
  * The resolved path is still checked to sit inside the media directory, because
  * one bad migration should not turn a lookup into an arbitrary file read.
  *
- * This is not authorisation. There are no accounts here, so an unguessable id is
- * the whole protection, which is adequate for evidence about an emergency the
- * reporter is actively asking to be shared and inadequate for anything else.
+ * Two kinds of caller reach this, and they are not owed the same thing. An
+ * operator holds the district and may fetch anything in it. A field crew holds
+ * one credential shared by every crew, so letting a field session fetch by id
+ * alone would hand any crew every recording in the district. A field caller
+ * therefore has to name their team, and the incident has to actually be
+ * assigned to it; the check is a query, because a request that says which team
+ * it is can say it is any team.
+ *
+ * The unguessable id is not the protection and never was. It is what stops one
+ * report's media being reachable from another's, nothing more.
  */
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -47,6 +55,45 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const report = getReport(id);
   if (!report) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  /**
+   * Which caller is this, and are they owed this file?
+   *
+   * The proxy has already established that one of the two credentials is valid.
+   * What it cannot decide is whether a field crew is owed this particular
+   * report, so that is settled here rather than being assumed from having got
+   * through the door.
+   */
+  const opsSecret = process.env.OPS_PASSPHRASE;
+  const isOperator =
+    Boolean(opsSecret) &&
+    (await verifyToken(req.cookies.get(OPS_COOKIE)?.value, opsSecret as string));
+
+  if (!isOperator) {
+    const fieldSecret = process.env.FIELD_PASSPHRASE;
+    const isField =
+      Boolean(fieldSecret) &&
+      (await verifyToken(req.cookies.get(FIELD_COOKIE)?.value, fieldSecret as string));
+    if (!isField) {
+      return NextResponse.json({ error: "sign-in required" }, { status: 401 });
+    }
+
+    const team = req.nextUrl.searchParams.get("team")?.trim();
+    if (!team) {
+      return NextResponse.json(
+        { error: "team is required: a crew may only open evidence for their own incidents" },
+        { status: 400 },
+      );
+    }
+    // Not "is it assigned to any team", which would be every crew seeing
+    // everything, and not the team named in the request taken on trust.
+    const theirs =
+      report.incident_id !== null &&
+      incidentsForTeam(team).some((inc) => inc.id === report.incident_id);
+    if (!theirs) {
+      return NextResponse.json({ error: "not assigned to this team" }, { status: 404 });
+    }
+  }
 
   const stored = kind === "audio" ? report.audio_path : report.image_path;
   if (!stored) return NextResponse.json({ error: "no such attachment" }, { status: 404 });

@@ -15,13 +15,20 @@
 
 export async function createIncident(
   B,
-  { text, reporterId, name, phone, operator = "Fixture" },
+  { text, reporterId, name, phone, imagePath, operator = "Fixture" },
 ) {
   const fd = new FormData();
   fd.set("text", text);
   if (reporterId) fd.set("reporter_id", reporterId);
   if (name) fd.set("reporter_name", name);
   if (phone) fd.set("reporter_phone", phone);
+  if (imagePath) {
+    const { readFileSync } = await import("node:fs");
+    fd.set(
+      "image",
+      new File([readFileSync(imagePath)], imagePath.split("/").pop(), { type: "image/jpeg" }),
+    );
+  }
 
   const posted = await fetch(`${B}/api/report`, { method: "POST", body: fd });
   if (!posted.ok) throw new Error(`report rejected (${posted.status})`);

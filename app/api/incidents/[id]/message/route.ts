@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendMessage, getIncident } from "@/lib/db";
+import { sendMessage, sendTeamMessage, getIncident } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,7 @@ const MAX_BODY = 500;
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
-  let body: { operator?: string; body?: string };
+  let body: { operator?: string; body?: string; to?: "reporter" | "team" };
   try {
     body = await req.json();
   } catch {
@@ -50,8 +50,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: `keep it under ${MAX_BODY} characters` }, { status: 400 });
   }
 
-  if (!getIncident(id)) {
+  const incident = getIncident(id);
+  if (!incident) {
     return NextResponse.json({ error: "incident not found" }, { status: 404 });
+  }
+
+  /**
+   * Addressed to the crew instead of the reporter.
+   *
+   * The same endpoint because it is the same act, saying something to somebody
+   * about this incident, and the same attribution and audit apply. The audience
+   * is explicit rather than inferred from whether the incident is assigned:
+   * an operator reassuring a family and an operator redirecting a boat must
+   * never be one keystroke apart.
+   */
+  if (body.to === "team") {
+    if (!incident.assigned_to) {
+      return NextResponse.json(
+        { error: "no crew has been given this incident yet" },
+        { status: 409 },
+      );
+    }
+    const sent = sendTeamMessage(id, incident.assigned_to, text, `operator:${operator}`);
+    if (!sent) {
+      return NextResponse.json({ error: "could not reach that crew" }, { status: 409 });
+    }
+    return NextResponse.json({ id, delivered: 1, to: incident.assigned_to });
   }
 
   const delivered = sendMessage(id, text, `operator:${operator}`);

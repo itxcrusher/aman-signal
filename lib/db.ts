@@ -110,6 +110,15 @@ const MIGRATIONS: Record<string, Record<string, string>> = {
     // response to rely on and never retries blind.
     client_key: "TEXT",
   },
+  messages: {
+    /**
+     * Set when this message is addressed to a response crew rather than to the
+     * person who reported. The two are different acts: one answers a citizen,
+     * the other instructs a team, and mixing them would put operational
+     * direction on a frightened person's screen.
+     */
+    to_team: "TEXT",
+  },
   incidents: {
     assigned_at: "INTEGER",
     assigned_by: "TEXT",
@@ -608,6 +617,7 @@ export type MessageRow = {
   body: string;
   actor: string;
   seen_at: number | null;
+  to_team: string | null;
 };
 
 /**
@@ -628,7 +638,7 @@ export function sendMessage(incidentId: string, body: string, actor: string): nu
 
   const now = Date.now();
   const stmt = db().prepare(
-    "INSERT INTO messages (id, created_at, incident_id, reporter_id, body, actor, seen_at) VALUES (?,?,?,?,?,?,NULL)",
+    "INSERT INTO messages (id, created_at, incident_id, reporter_id, body, actor, seen_at, to_team) VALUES (?,?,?,?,?,?,NULL,NULL)",
   );
   for (const r of reporters) stmt.run(id(), now, incidentId, r.reporter_id, body, actor);
 
@@ -640,8 +650,49 @@ export function sendMessage(incidentId: string, body: string, actor: string): nu
 
 export function messagesForReporter(reporterId: string): MessageRow[] {
   return db()
-    .prepare("SELECT * FROM messages WHERE reporter_id = ? ORDER BY created_at DESC LIMIT 50")
+    .prepare(
+      "SELECT * FROM messages WHERE reporter_id = ? AND to_team IS NULL ORDER BY created_at DESC LIMIT 50",
+    )
     .all(reporterId) as MessageRow[];
+}
+
+/**
+ * What the control room has told this crew about this incident.
+ *
+ * The last direction that was still missing. A room could hand a crew an
+ * incident and then had no way to say "the second boat is coming from the
+ * north, wait at the bridge" without a phone call, which is the thing this
+ * system exists to stop being the only channel.
+ */
+export function messagesForTeam(incidentId: string, team: string): MessageRow[] {
+  return db()
+    .prepare(
+      `SELECT * FROM messages
+        WHERE incident_id = ? AND lower(trim(to_team)) = lower(trim(?))
+        ORDER BY created_at ASC`,
+    )
+    .all(incidentId, team) as MessageRow[];
+}
+
+export function sendTeamMessage(
+  incidentId: string,
+  team: string,
+  body: string,
+  actor: string,
+): boolean {
+  const inc = getIncident(incidentId);
+  // Refused rather than stored where nobody will look: a message to a crew that
+  // has not been given this incident would sit in a table addressed to nobody.
+  if (!inc?.assigned_to || inc.assigned_to.trim().toLowerCase() !== team.trim().toLowerCase()) {
+    return false;
+  }
+  db()
+    .prepare(
+      "INSERT INTO messages (id, created_at, incident_id, reporter_id, body, actor, seen_at, to_team) VALUES (?,?,?,?,?,?,NULL,?)",
+    )
+    .run(id(), Date.now(), incidentId, "", body, actor, inc.assigned_to);
+  audit(incidentId, actor, "team_message_sent", `to ${inc.assigned_to}`);
+  return true;
 }
 
 /** Marks what this reporter has now seen, so the board can tell. */
@@ -656,6 +707,17 @@ export function messagesForIncident(incidentId: string): MessageRow[] {
   return db()
     .prepare("SELECT * FROM messages WHERE incident_id = ? ORDER BY created_at ASC")
     .all(incidentId) as MessageRow[];
+}
+
+/** Marks what this crew has now seen, so the room can tell. */
+export function markTeamMessagesSeen(incidentId: string, team: string): number {
+  const res = db()
+    .prepare(
+      `UPDATE messages SET seen_at = ?
+        WHERE incident_id = ? AND lower(trim(to_team)) = lower(trim(?)) AND seen_at IS NULL`,
+    )
+    .run(Date.now(), incidentId, team);
+  return res.changes;
 }
 
 /**

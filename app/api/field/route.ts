@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { incidentsForTeam, reportsFor, teamsWithWork, messagesForIncident } from "@/lib/db";
+import {
+  incidentsForTeam,
+  reportsFor,
+  teamsWithWork,
+  messagesForIncident,
+  messagesForTeam,
+} from "@/lib/db";
 import { buildIncidentView } from "@/lib/incident";
 
 export const runtime = "nodejs";
@@ -73,8 +79,30 @@ export async function GET(req: NextRequest) {
       said: view.reports
         .filter((r) => r.raw_text)
         .map((r) => ({ at: r.created_at, text: r.raw_text })),
+      /**
+       * The recordings and photographs, for a crew who can use them better than
+       * anyone at a desk. A photograph of the street answers in one glance what
+       * the road field only estimates, and hearing the voice tells a responder
+       * something about the situation that no transcript carries.
+       */
+      evidence: view.reports
+        .filter((r) => r.audio_path || r.image_path)
+        .map((r) => ({
+          report_id: r.id,
+          has_audio: Boolean(r.audio_path),
+          has_image: Boolean(r.image_path),
+        })),
       /** What the control room has already told the reporter, so nobody repeats it. */
-      told: messagesForIncident(inc.id).map((m) => ({ at: m.created_at, body: m.body })),
+      told: messagesForIncident(inc.id)
+        .filter((m) => !m.to_team)
+        .map((m) => ({ at: m.created_at, body: m.body })),
+      /** And what the control room has told this crew. */
+      orders: messagesForTeam(inc.id, team).map((m) => ({
+        at: m.created_at,
+        body: m.body,
+        actor: m.actor,
+        seen: m.seen_at !== null,
+      })),
     };
   });
 

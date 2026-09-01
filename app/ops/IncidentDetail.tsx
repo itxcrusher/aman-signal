@@ -43,6 +43,11 @@ export default function IncidentDetail({
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  // Kept entirely separate from the reporter's box. Same act, different
+  // audience, and the two must not be one keystroke apart.
+  const [crewMessage, setCrewMessage] = useState("");
+  const [sendingCrew, setSendingCrew] = useState(false);
+  const [sentCrew, setSentCrew] = useState(false);
   const panel = useRef<HTMLDivElement | null>(null);
 
   const [summary, setSummary] = useState(incident.summary ?? "");
@@ -421,9 +426,11 @@ export default function IncidentDetail({
               {t.messageReporterWhy}
             </p>
 
-            {incident.messages.length ? (
+            {incident.messages.filter((m) => !m.to_team).length ? (
               <ul className="mb-3 space-y-2">
-                {incident.messages.map((m, i) => (
+                {incident.messages
+                  .filter((m) => !m.to_team)
+                  .map((m, i) => (
                   <li key={i} className="rounded-lg bg-surface-2 p-3">
                     <p className="text-sm text-paper" dir="auto">
                       {m.body}
@@ -487,6 +494,84 @@ export default function IncidentDetail({
               {sent ? <span className={`${t.face} text-sm text-ok`}>{t.messageSent}</span> : null}
             </div>
           </section>
+
+          {incident.assigned_to ? (
+            <section>
+              <p className={`${t.face} mb-1 text-xs uppercase tracking-wide text-paper-soft`}>
+                {t.tellCrew} &middot; {incident.assigned_to}
+              </p>
+              <p className={`${t.face} mb-3 text-xs leading-relaxed text-paper-soft`}>
+                {t.tellCrewWhy}
+              </p>
+
+              {incident.messages.filter((m) => m.to_team).length ? (
+                <ul className="mb-3 space-y-2">
+                  {incident.messages
+                    .filter((m) => m.to_team)
+                    .map((m, i) => (
+                      <li key={i} className="rounded-lg bg-surface-2 p-3">
+                        <p className="text-sm text-paper" dir="auto">
+                          {m.body}
+                        </p>
+                        <p className="mono mt-1 text-xs text-paper-soft">
+                          {m.actor} &middot; {when(m.at)} &middot;{" "}
+                          <span className={m.seen ? "text-ok" : "text-paper-soft"}>
+                            {m.seen ? t.seenByReporter : t.notSeenYet}
+                          </span>
+                        </p>
+                      </li>
+                    ))}
+                </ul>
+              ) : null}
+
+              <textarea
+                value={crewMessage}
+                onChange={(e) => {
+                  setCrewMessage(e.target.value);
+                  setSentCrew(false);
+                }}
+                rows={2}
+                dir="auto"
+                placeholder={t.crewPlaceholder}
+                className="w-full rounded-lg border border-line bg-surface-2 p-2 text-sm text-paper"
+              />
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={sendingCrew || !crewMessage.trim()}
+                  onClick={async () => {
+                    setSendingCrew(true);
+                    setErr(null);
+                    try {
+                      const res = await fetch(`/api/incidents/${incident.id}/message`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ operator, body: crewMessage.trim(), to: "team" }),
+                      });
+                      if (res.ok) {
+                        setCrewMessage("");
+                        setSentCrew(true);
+                        onSaved();
+                      } else {
+                        const j = await res.json().catch(() => ({}));
+                        setErr(j.error ?? "failed");
+                      }
+                    } catch {
+                      setErr("Could not reach the server.");
+                    } finally {
+                      setSendingCrew(false);
+                    }
+                  }}
+                  className={`${t.face} cursor-pointer rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  {t.sendMessage}
+                </button>
+                {sentCrew ? (
+                  <span className={`${t.face} text-sm text-ok`}>{t.messageSent}</span>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           <section>
             <p className={`${t.face} mb-2 text-xs uppercase tracking-wide text-paper-soft`}>

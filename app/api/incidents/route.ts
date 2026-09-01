@@ -38,6 +38,8 @@ export async function GET() {
         body: m.body,
         actor: m.actor,
         seen: m.seen_at !== null,
+        /** Null for a message to the reporter, the crew's name for an order. */
+        to_team: m.to_team,
       })),
       reports: view.reports.map((r, i) => ({
         id: r.id,

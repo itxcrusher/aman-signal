@@ -43,6 +43,7 @@ async function fieldCookie() {
 // ---------- an incident, assigned to a crew ----------
 console.log("\nAn incident is handed to a team:");
 let incidentId;
+let orderedIncidentId;
 {
   const made = await createIncident(B, {
     text: `pani ghar mein ghus gaya hai, chhat par teen log hain, ek boorhi khatoon bhi hai, ${RUN} mohalla`,
@@ -200,6 +201,136 @@ console.log("\nAnd when the crew is done:");
     (json.incidents ?? []).some((i) => i.id === incidentId),
     "it does not vanish from their screen the moment they close it",
   );
+}
+
+// ---------- evidence a crew can actually open ----------
+//
+// A photograph of the water line answers in one glance what the road field only
+// estimates, so a crew should be able to see it. What they must not be able to
+// do is walk every recording in the district: all crews share one passphrase,
+// so passing the gate cannot be the whole answer, and the route checks the
+// incident is assigned to the team that asked.
+console.log("\nEvidence, for the crew it belongs to and nobody else:");
+{
+  const withPhoto = await createIncident(B, {
+    text: `chhat tak pani aa gaya, ghar ke bahar khade hain, ${RUN} gali`,
+    reporterId: `${RID}-photo`,
+    name: `Field Photo ${RUN}`,
+    phone: "03009998877",
+    imagePath: "/tmp/imgtest/flood.jpg",
+    operator: `Dispatcher ${RUN}`,
+  });
+  await fetch(`${B}/api/incidents/${withPhoto.incidentId}/assign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ team: TEAM, operator: `Dispatcher ${RUN}` }),
+  });
+
+  const list = await (
+    await fetch(`${B}/api/field?team=${encodeURIComponent(TEAM)}`, { headers: { Cookie: FIELD } })
+  ).json();
+  const mine = (list.incidents ?? []).find((i) => i.id === withPhoto.incidentId);
+  log((mine?.evidence ?? []).some((e) => e.has_image), "the crew is told a photograph exists");
+
+  const rid = mine?.evidence?.[0]?.report_id;
+  const ok = await fetch(`${B}/api/media/${rid}?kind=image&team=${encodeURIComponent(TEAM)}`, {
+    headers: { Cookie: FIELD },
+  });
+  log(ok.ok, "and can open it", `${ok.status}`);
+
+  const noTeam = await fetch(`${B}/api/media/${rid}?kind=image`, { headers: { Cookie: FIELD } });
+  log(noTeam.status === 400, "a crew that does not say who they are is refused", `${noTeam.status}`);
+
+  const wrongTeam = await fetch(
+    `${B}/api/media/${rid}?kind=image&team=${encodeURIComponent("Some Other Team")}`,
+    { headers: { Cookie: FIELD } },
+  );
+  log(
+    wrongTeam.status === 404,
+    "and naming a team the incident is not assigned to gets nothing",
+    `${wrongTeam.status}`,
+  );
+
+  // An explicitly empty Cookie, because the suite's own wrapper attaches the
+  // operator cookie to any /api/media call that does not set one, and an
+  // "anonymous" request that quietly carries a credential tests nothing.
+  const anon = await fetch(`${B}/api/media/${rid}?kind=image&team=${encodeURIComponent(TEAM)}`, {
+    headers: { Cookie: "" },
+  });
+  log(anon.status === 401, "an anonymous request is still refused outright", `${anon.status}`);
+
+  // The operator path must not have been narrowed by any of this.
+  const asOps = await fetch(`${B}/api/media/${rid}?kind=image`, { headers: { Cookie: OPS } });
+  log(asOps.ok, "an operator still fetches evidence without naming a team", `${asOps.status}`);
+
+  // Keep this incident for the ordering checks below.
+  orderedIncidentId = withPhoto.incidentId;
+}
+
+// ---------- the room can talk to the crew ----------
+//
+// The last direction that was missing. A room could hand a crew an incident and
+// then had no way to say "the second boat is coming from the north, wait at the
+// bridge" except by telephone, which is the channel this system exists to stop
+// being the only one.
+console.log("\nThe control room instructs the crew:");
+{
+  const ORDER = `Doosri kashti shumal ki taraf se aa rahi hai. Pul par intezar karein. ${RUN}`;
+
+  const sent = await fetch(`${B}/api/incidents/${orderedIncidentId}/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operator: `Dispatcher ${RUN}`, body: ORDER, to: "team" }),
+  });
+  log(sent.ok, "an order is accepted", `${sent.status}`);
+
+  const list = await (
+    await fetch(`${B}/api/field?team=${encodeURIComponent(TEAM)}`, { headers: { Cookie: FIELD } })
+  ).json();
+  const mine = (list.incidents ?? []).find((i) => i.id === orderedIncidentId);
+  log((mine?.orders ?? []).some((o) => o.body === ORDER), "and reaches the crew's screen");
+  log(mine?.orders?.[0]?.seen === false, "not yet acknowledged");
+
+  // An order must not land on a frightened person's phone.
+  const reporter = await (
+    await fetch(`${B}/api/my-reports?reporter_id=${RID}-photo`)
+  ).json();
+  log(
+    !(reporter.messages ?? []).some((m) => m.body === ORDER),
+    "and does NOT appear on the reporter's screen, which is a different audience",
+  );
+
+  const ack = await fetch(`${B}/api/field/${orderedIncidentId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: FIELD },
+    body: JSON.stringify({ team: TEAM, seen: true }),
+  });
+  log(ack.ok, "the crew acknowledges it", `${ack.status}`);
+
+  const { incidents } = await (await fetch(`${B}/api/incidents`)).json();
+  const inc = incidents.find((i) => i.id === orderedIncidentId);
+  const order = (inc?.messages ?? []).find((m) => m.body === ORDER);
+  log(order?.to_team === TEAM, "the board records who it was for", order?.to_team);
+  log(order?.seen === true, "and that the crew read it");
+  log(
+    (inc?.audit ?? []).some((a) => a.action === "team_message_sent"),
+    "sending it is in the audit trail",
+  );
+}
+
+console.log("\nAn order needs a crew to send it to:");
+{
+  const unassigned = await createIncident(B, {
+    text: `koi team abhi tak nahi bheji gayi, ${RUN} nakabil`,
+    reporterId: `${RID}-noteam`,
+    operator: `Dispatcher ${RUN}`,
+  });
+  const res = await fetch(`${B}/api/incidents/${unassigned.incidentId}/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operator: `Dispatcher ${RUN}`, body: "go now", to: "team" }),
+  });
+  log(res.status === 409, "an order to an unassigned incident is refused", `${res.status}`);
 }
 
 console.log(`\ncleanup reporter id: ${RID}`);

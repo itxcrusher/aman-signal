@@ -33,6 +33,9 @@ export type OpsStrings = {
   messageSent: string;
   noReporterToMessage: string;
   alreadyTold: string;
+  tellCrew: string;
+  tellCrewWhy: string;
+  crewPlaceholder: string;
   seenByReporter: string;
   notSeenYet: string;
 
@@ -135,6 +138,10 @@ const en: OpsStrings = {
   messageSent: "Sent",
   noReporterToMessage: "Nobody who reported this can be messaged: no device id on any report.",
   alreadyTold: "Already told them",
+  tellCrew: "Tell the crew",
+  tellCrewWhy:
+    "Goes to the team this incident is assigned to, on their own screen, above everything else on the card. Use it for what changes where they go or what they take.",
+  crewPlaceholder: "e.g. Second boat coming from the north. Wait at the bridge.",
   seenByReporter: "seen",
   notSeenYet: "not seen yet",
 
@@ -246,6 +253,10 @@ const ur: OpsStrings = {
   messageSent: "بھیج دیا گیا",
   noReporterToMessage: "اس کی اطلاع دینے والے کو پیغام نہیں بھیجا جا سکتا: کسی اطلاع پر ڈیوائس کی شناخت موجود نہیں۔",
   alreadyTold: "پہلے بتایا جا چکا ہے",
+  tellCrew: "ٹیم کو بتائیں",
+  tellCrewWhy:
+    "یہ اس ٹیم کو جائے گا جسے یہ واقعہ سونپا گیا ہے، ان کی اسکرین پر سب سے اوپر۔ وہی بات لکھیں جو ان کے راستے یا سامان کو بدل دے۔",
+  crewPlaceholder: "مثال: دوسری کشتی شمال کی طرف سے آ رہی ہے۔ پل پر انتظار کریں۔",
   seenByReporter: "دیکھ لیا",
   notSeenYet: "ابھی نہیں دیکھا",
 

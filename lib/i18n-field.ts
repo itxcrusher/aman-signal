@@ -39,6 +39,7 @@ export type FieldStrings = {
   roadDisputed: string;
   whatTheySaid: string;
   whatWeTold: string;
+  ordersFromRoom: string;
   callThem: string;
   openInMaps: string;
   noLocation: string;
@@ -83,6 +84,7 @@ const en: FieldStrings = {
   roadDisputed: "Reports disagree about the road",
   whatTheySaid: "What they said",
   whatWeTold: "What the control room told them",
+  ordersFromRoom: "From the control room, to you",
   callThem: "Call",
   openInMaps: "Open in maps",
   noLocation: "No coordinates. Use the description and call them.",
@@ -128,6 +130,7 @@ const ur: FieldStrings = {
   roadDisputed: "راستے کے بارے میں اطلاعات مختلف ہیں",
   whatTheySaid: "انہوں نے کیا بتایا",
   whatWeTold: "کنٹرول روم نے انہیں کیا بتایا",
+  ordersFromRoom: "کنٹرول روم کی طرف سے، آپ کے لیے",
   callThem: "کال کریں",
   openInMaps: "نقشے میں کھولیں",
   noLocation: "کوئی مقام موجود نہیں۔ تفصیل دیکھیں اور کال کریں۔",
