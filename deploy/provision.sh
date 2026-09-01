@@ -6,6 +6,7 @@
 # USAGE (on the server, as a sudo-capable user)
 #   export DASHSCOPE_API_KEY=sk-...
 #   export OPS_PASSPHRASE=...                          # opens the operator board
+#   export FIELD_PASSPHRASE=...                        # opens the field-team screen
 #   export AMANSIGNAL_DOMAIN=amansignal.example.com     # must already resolve here
 #   export CERTBOT_EMAIL=you@example.com
 #   sudo -E bash deploy/provision.sh
@@ -30,6 +31,10 @@ SKIP_TLS="${AMANSIGNAL_SKIP_TLS:-0}"
 # who knew the path. The app itself also refuses rather than opening up, so
 # skipping this produces a board nobody can use, not a board anyone can.
 : "${OPS_PASSPHRASE:?set OPS_PASSPHRASE, the control-room passphrase for /ops}"
+# Separate from the operator's on purpose: a response crew needs the incidents
+# assigned to them, not the district's reports, names and recordings. One
+# passphrase for both would hand every crew the control room.
+: "${FIELD_PASSPHRASE:?set FIELD_PASSPHRASE, the team passphrase for /field}"
 if [[ "$SKIP_TLS" != "1" ]]; then
   : "${AMANSIGNAL_DOMAIN:?set AMANSIGNAL_DOMAIN, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
   : "${CERTBOT_EMAIL:?set CERTBOT_EMAIL, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
@@ -77,6 +82,7 @@ docker run -d --name "$CONTAINER" \
   -p 127.0.0.1:3000:3000 \
   -e DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" \
   -e OPS_PASSPHRASE="$OPS_PASSPHRASE" \
+  -e FIELD_PASSPHRASE="$FIELD_PASSPHRASE" \
   -v "$VOLUME":/data \
   --restart unless-stopped \
   amansignal >/dev/null

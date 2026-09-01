@@ -37,6 +37,8 @@ The design principles are strict:
 - **A report the model cannot read still reaches a person.** When extraction fails, the recording and photo are kept and the report is queued for manual reading rather than dropped; an operator listens, writes down what it says, and the incident is recorded as their reading, not the machine's.
 - **A report composed with no network is kept and sent later.** It is held on the device, survives the app closing, and carries an identifier that lets a repeated send be recognised as the same report, so a lost response costs neither a duplicate incident nor a lost one. Reports sent this way are marked on the board as never having been confirmed by the reporter.
 - **The operator board is access-controlled.** It carries reporters' names, phone numbers, photographs and voice recordings, so reading it requires a control-room passphrase. Reporting an emergency never does.
+- **An assignment reaches the crew it names.** A field screen shows a response team the incidents handed to them, with the location, what people actually said and a number to call on the way; they report movement, findings and completion back to the board. It has its own passphrase, because a crew needs their own work rather than the district's records.
+- **The control room can answer the reporter.** A status changing to "assigned" is information; "a boat is coming from the Ravi road side, stay upstairs" is an answer. Messages appear on the reporter's own screen, the board shows whether they were read, and a message that reaches nobody is reported as a failure rather than a success.
 
 ## Measured, not assumed
 
@@ -70,8 +72,9 @@ Deployment, configuration and operating notes: [docs/deployment.md](docs/deploym
 
 ```bash
 npm install
-# put DASHSCOPE_API_KEY=sk-... and OPS_PASSPHRASE=... in .env (see .env.example)
-# without OPS_PASSPHRASE the operator board refuses everybody, by design
+# put DASHSCOPE_API_KEY=sk-..., OPS_PASSPHRASE=... and FIELD_PASSPHRASE=... in .env
+# (see .env.example). Without them the operator and field screens refuse
+# everybody, by design: an unset passphrase must not mean an open door.
 npm run dev
 
 npm run seed        # build the demo scenario through the live API
