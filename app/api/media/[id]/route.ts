@@ -53,22 +53,24 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: "kind must be audio or image" }, { status: 400 });
   }
 
-  const report = getReport(id);
-  if (!report) return NextResponse.json({ error: "not found" }, { status: 404 });
-
   /**
-   * Which caller is this, and are they owed this file?
+   * Who is asking, settled before the report is looked up.
    *
-   * The proxy has already established that one of the two credentials is valid.
-   * What it cannot decide is whether a field crew is owed this particular
-   * report, so that is settled here rather than being assumed from having got
-   * through the door.
+   * The proxy has established that one of the two credentials is valid. What it
+   * cannot decide is whether a field crew is owed this particular report, so
+   * that is settled here rather than assumed from having got through the door.
+   *
+   * Deliberately ahead of the lookup. Answering "no such report" before asking
+   * whether the caller may have it would let a crew who names no team probe
+   * which ids exist, one 404 at a time. A caller who has not said who they are
+   * gets the same answer whether the id is real or invented.
    */
   const opsSecret = process.env.OPS_PASSPHRASE;
   const isOperator =
     Boolean(opsSecret) &&
     (await verifyToken(req.cookies.get(OPS_COOKIE)?.value, opsSecret as string));
 
+  let team: string | null = null;
   if (!isOperator) {
     const fieldSecret = process.env.FIELD_PASSPHRASE;
     const isField =
@@ -78,20 +80,27 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       return NextResponse.json({ error: "sign-in required" }, { status: 401 });
     }
 
-    const team = req.nextUrl.searchParams.get("team")?.trim();
+    team = req.nextUrl.searchParams.get("team")?.trim() || null;
     if (!team) {
       return NextResponse.json(
         { error: "team is required: a crew may only open evidence for their own incidents" },
         { status: 400 },
       );
     }
+  }
+
+  const report = getReport(id);
+  if (!report) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  if (team) {
     // Not "is it assigned to any team", which would be every crew seeing
-    // everything, and not the team named in the request taken on trust.
+    // everything, and not the team named in the request taken on trust. A
+    // report that is not theirs answers exactly as one that does not exist.
     const theirs =
       report.incident_id !== null &&
       incidentsForTeam(team).some((inc) => inc.id === report.incident_id);
     if (!theirs) {
-      return NextResponse.json({ error: "not assigned to this team" }, { status: 404 });
+      return NextResponse.json({ error: "not found" }, { status: 404 });
     }
   }
 

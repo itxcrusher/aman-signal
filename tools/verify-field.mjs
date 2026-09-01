@@ -241,6 +241,17 @@ console.log("\nEvidence, for the crew it belongs to and nobody else:");
   const noTeam = await fetch(`${B}/api/media/${rid}?kind=image`, { headers: { Cookie: FIELD } });
   log(noTeam.status === 400, "a crew that does not say who they are is refused", `${noTeam.status}`);
 
+  // Asked before the report is looked up, so a crew naming no team cannot probe
+  // which ids exist one 404 at a time.
+  const invented = await fetch(`${B}/api/media/no-such-report-id?kind=image`, {
+    headers: { Cookie: FIELD },
+  });
+  log(
+    invented.status === 400,
+    "and an invented id gets the same answer as a real one, not a 404",
+    `${invented.status}`,
+  );
+
   const wrongTeam = await fetch(
     `${B}/api/media/${rid}?kind=image&team=${encodeURIComponent("Some Other Team")}`,
     { headers: { Cookie: FIELD } },
