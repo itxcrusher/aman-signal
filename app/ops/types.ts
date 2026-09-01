@@ -60,7 +60,16 @@ export type Incident = {
   signal: number;
   audit: { at: number; actor: string; action: string; detail: string | null }[];
   /** What the control room has told the reporter, and whether they have seen it. */
-  messages: { at: number; body: string; actor: string; seen: boolean; to_team: string | null }[];
+  messages: {
+    at: number;
+    body: string;
+    actor: string;
+    seen: boolean;
+    to_team: string | null;
+    /** How many people it went to, and how many have read it. */
+    recipients: number;
+    seenBy: number;
+  }[];
   reports: Report[];
 };
 

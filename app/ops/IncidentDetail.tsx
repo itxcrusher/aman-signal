@@ -518,6 +518,10 @@ export default function IncidentDetail({
                           <span className={m.seen ? "text-ok" : "text-paper-soft"}>
                             {m.seen ? t.seenByReporter : t.notSeenYet}
                           </span>
+                          {/* An incident with several reporters gets one message
+                              each, so "seen" alone would hide that two of three
+                              have read it and one has not. */}
+                          {m.recipients > 1 ? ` (${m.seenBy}/${m.recipients})` : ""}
                         </p>
                       </li>
                     ))}

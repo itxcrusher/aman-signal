@@ -93,6 +93,13 @@ console.log("\nThe control room can tell whether it landed:");
   const shown = (inc?.messages ?? []).find((m) => m.body === BODY);
   log(Boolean(shown), "the board shows what was already said");
   log(shown?.seen === false, "and that the reporter has not seen it yet");
+  // One row is written per recipient so each has their own read state; the
+  // board must show the message once, not once per person who received it.
+  log(
+    (inc?.messages ?? []).filter((m) => m.body === BODY).length === 1,
+    "the message appears once, not once per recipient",
+    String((inc?.messages ?? []).filter((m) => m.body === BODY).length),
+  );
   log(shown?.actor === `operator:${OPERATOR}`, "attributed to the operator who sent it", shown?.actor);
   log(
     (inc?.audit ?? []).some((a) => a.action === "message_sent"),

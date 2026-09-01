@@ -93,9 +93,18 @@ export async function GET(req: NextRequest) {
           has_image: Boolean(r.image_path),
         })),
       /** What the control room has already told the reporter, so nobody repeats it. */
-      told: messagesForIncident(inc.id)
-        .filter((m) => !m.to_team)
-        .map((m) => ({ at: m.created_at, body: m.body })),
+      /*
+       * One row per reporter is stored, because each of them has their own
+       * read state. The crew is owed the message, not the bookkeeping: three
+       * reporters meant the same sentence printed three times on their card.
+       */
+      told: [
+        ...new Map(
+          messagesForIncident(inc.id)
+            .filter((m) => !m.to_team)
+            .map((m) => [`${m.created_at}|${m.body}`, { at: m.created_at, body: m.body }]),
+        ).values(),
+      ],
       /** And what the control room has told this crew. */
       orders: messagesForTeam(inc.id, team).map((m) => ({
         at: m.created_at,

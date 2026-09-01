@@ -33,13 +33,32 @@ export async function GET() {
       // What has already been said to the reporter, and whether they have seen
       // it. An operator about to send a second reassurance should be able to
       // see the first one, and whether it landed.
-      messages: messagesForIncident(inc.id).map((m) => ({
-        at: m.created_at,
-        body: m.body,
-        actor: m.actor,
-        seen: m.seen_at !== null,
-        /** Null for a message to the reporter, the crew's name for an order. */
-        to_team: m.to_team,
+      /*
+       * Grouped, because one send writes a row per recipient and the board was
+       * printing the operator's own message once per reporter. What an operator
+       * needs is the message and whether it landed, so the rows collapse and
+       * the read state is reported across them.
+       */
+      messages: [
+        ...messagesForIncident(inc.id)
+          .reduce((acc, m) => {
+            const key = `${m.created_at}|${m.to_team ?? ""}|${m.body}`;
+            const prev = acc.get(key);
+            acc.set(key, {
+              at: m.created_at,
+              body: m.body,
+              actor: m.actor,
+              to_team: m.to_team,
+              recipients: (prev?.recipients ?? 0) + 1,
+              seenBy: (prev?.seenBy ?? 0) + (m.seen_at !== null ? 1 : 0),
+            });
+            return acc;
+          }, new Map())
+          .values(),
+      ].map((m) => ({
+        ...m,
+        /** True only when every recipient has read it. */
+        seen: m.recipients > 0 && m.seenBy === m.recipients,
       })),
       reports: view.reports.map((r, i) => ({
         id: r.id,
