@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { TriagePanel, type Unreadable } from "./TriagePanel";
-import Mark from "../Mark";
+import Logo from "../Logo";
 import IncidentMap from "./IncidentMap";
 import IncidentDetail from "./IncidentDetail";
 import OpsOnboarding, { type OpsIdentity } from "./OpsOnboarding";
@@ -246,9 +246,9 @@ export default function OpsBoard() {
       <header className="border-b border-line px-6 py-4">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="flex items-center gap-2 text-lg font-bold tracking-tight text-brand-soft">
-              <Mark className="h-6 w-6 shrink-0" />
-              AmanSignal <span className="font-normal text-paper-soft">{t.operations}</span>
+            <h1 className="flex items-baseline gap-2.5 text-lg text-brand-soft">
+              <Logo className="h-5 shrink-0 self-center" />
+              <span className="font-normal text-paper-soft">{t.operations}</span>
             </h1>
             <p className={`${t.face} text-xs text-paper-soft`}>
               {districtName(identity.district, lang === "ur")} {t.controlRoom} &middot;{" "}

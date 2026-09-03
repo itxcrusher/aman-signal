@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Logo from "../../Logo";
 
 /**
  * The way in for a field crew.
@@ -42,7 +43,10 @@ export default function FieldLogin({ demoPassphrase }: { demoPassphrase: string 
   return (
     <main className="ops-surface flex min-h-screen flex-col justify-center bg-ground px-6 text-paper">
       <div className="mx-auto w-full max-w-md">
-        <h1 className="text-lg font-semibold text-paper">AmanSignal field</h1>
+        <h1 className="flex items-baseline gap-2.5 text-lg text-paper">
+          <Logo className="h-5 shrink-0 self-center" />
+          <span className="text-paper-soft">field</span>
+        </h1>
         <p className="mt-2 text-sm leading-relaxed text-paper-soft">
           For response teams. You will see the incidents assigned to your team, with the numbers to
           call on the way.

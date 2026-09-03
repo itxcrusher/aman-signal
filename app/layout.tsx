@@ -36,9 +36,21 @@ const lexend = Lexend({
   display: "swap",
 });
 
+const DESCRIPTION = "Urdu-first incident intelligence for disaster response";
+
 export const metadata: Metadata = {
+  // Needed for the link preview to resolve to an absolute URL. A relative one
+  // is dropped silently by every service that renders the card.
+  metadataBase: new URL("https://amansignal.muhammadhassaanjaved.com"),
   title: "AmanSignal",
-  description: "Urdu-first incident intelligence for disaster response",
+  description: DESCRIPTION,
+  openGraph: {
+    title: "AmanSignal",
+    description: DESCRIPTION,
+    siteName: "AmanSignal",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "AmanSignal", description: DESCRIPTION },
 };
 
 export const viewport: Viewport = {

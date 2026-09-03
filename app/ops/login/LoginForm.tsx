@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Logo from "../../Logo";
 
 /**
  * The way in to the operator board.
@@ -48,7 +49,10 @@ export default function OpsLogin({ demoPassphrase }: { demoPassphrase: string | 
     // status code and only showed up in a screenshot.
     <main className="ops-surface flex min-h-screen flex-col justify-center bg-ground px-6 text-paper">
       <div className="mx-auto w-full max-w-md">
-      <h1 className="text-lg font-semibold text-paper">AmanSignal operations</h1>
+      <h1 className="flex items-baseline gap-2.5 text-lg text-paper">
+        <Logo className="h-5 shrink-0 self-center" />
+        <span className="text-paper-soft">operations</span>
+      </h1>
       <p className="mt-2 text-sm leading-relaxed text-paper-soft">
         This board carries reporters&apos; names, phone numbers, photographs and recordings of their
         voices. It is restricted for their sake, not for ours.

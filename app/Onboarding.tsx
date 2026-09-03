@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { loadProfile, saveProfile, normalisePhone, type Profile } from "@/lib/profile";
 import { LANGUAGES, stringsFor, type Lang } from "@/lib/i18n";
-import Mark from "./Mark";
+import Logo from "./Logo";
 
 /**
  * First run: choose a language, then set up once, calmly, so that reporting later
@@ -35,8 +35,9 @@ export default function Onboarding({ onDone }: { onDone: (p: Profile) => void })
       <main className="min-h-screen bg-day text-ink">
         <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-8 px-5 py-10">
           <div className="text-center">
-            <Mark className="mx-auto h-14 w-14 text-brand" />
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-brand">AmanSignal</h1>
+            <h1 className="text-brand">
+              <Logo className="mx-auto h-8" />
+            </h1>
             <p className="urdu-ui mt-3 text-xl font-semibold">اپنی زبان منتخب کریں</p>
             <p className="en mt-1 text-base text-ink-soft" dir="ltr">
               Choose your language
@@ -123,10 +124,9 @@ export default function Onboarding({ onDone }: { onDone: (p: Profile) => void })
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2">
-                <Mark className="h-7 w-7 shrink-0 text-brand" />
-                <h1 className="text-2xl font-bold tracking-tight text-brand">AmanSignal</h1>
-              </div>
+              <h1 className="text-brand">
+                <Logo className="h-7" />
+              </h1>
               <p className={`${t.face} mt-2 text-xl font-bold`}>{t.tagline}</p>
             </div>
             <button

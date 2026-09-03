@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Mark from "../Mark";
+import Logo from "../Logo";
 import DistrictSelect from "./DistrictSelect";
 import { opsStringsFor } from "@/lib/i18n-ops";
 import { LANGUAGES, type Lang } from "@/lib/i18n";
@@ -52,9 +52,9 @@ export default function OpsOnboarding({
     <main dir={t.dir} className="ops-surface min-h-screen bg-ground text-paper">
       <div className="mx-auto max-w-2xl px-6 py-12">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-brand-soft">
-            <Mark className="h-8 w-8 shrink-0" />
-            AmanSignal <span className="font-normal text-paper-soft">{t.operations}</span>
+          <h1 className="flex items-baseline gap-3 text-2xl text-brand-soft">
+            <Logo className="h-7 shrink-0 self-center" />
+            <span className="font-normal text-paper-soft">{t.operations}</span>
           </h1>
           <div dir="ltr" className="flex shrink-0 rounded-lg bg-surface p-1 ring-1 ring-line">
             {LANGUAGES.map((l) => (

@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import MyReports from "./MyReports";
 import { loadProfile, saveProfile, type Profile } from "@/lib/profile";
 import LanguageToggle from "./LanguageToggle";
-import Mark from "./Mark";
+import Logo from "./Logo";
 /**
  * The confirmation screen's two heaviest pieces, kept off the first paint.
  *
@@ -500,10 +500,9 @@ export default function CitizenIntake() {
       <div className="mx-auto max-w-xl px-5 py-6">
         <header className="mb-6 flex items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <Mark className="h-7 w-7 shrink-0 text-brand" />
-              <h1 className="text-2xl font-bold tracking-tight text-brand">AmanSignal</h1>
-            </div>
+            <h1 className="text-brand">
+              <Logo className="h-7" />
+            </h1>
             <p className={`${t.face} mt-1 text-lg font-semibold`}>{t.headerAction}</p>
           </div>
           <LanguageToggle lang={profile.lang} onChange={setLang} />
