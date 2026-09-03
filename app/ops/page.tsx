@@ -69,6 +69,8 @@ export default function OpsBoard() {
   const [pending, setPending] = useState<PendingDup[]>([]);
   // Reports the model could not read, waiting for a person to read them.
   const [unreadable, setUnreadable] = useState<Unreadable[]>([]);
+  // Whether this deployment's reports are invented.
+  const [demo, setDemo] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   const [reassigning, setReassigning] = useState<string | null>(null);
@@ -93,6 +95,7 @@ export default function OpsBoard() {
       const dup = await b.json();
       const tri = await c.json();
       setIncidents(inc.incidents ?? []);
+      setDemo(Boolean(inc.demo));
       setPending(dup.pending ?? []);
       setUnreadable(tri.reports ?? []);
       setErr(null);
@@ -295,6 +298,14 @@ export default function OpsBoard() {
       </header>
 
       <div className="mx-auto max-w-6xl px-6 py-6">
+        {/* Stated on the board itself, not only on the way in. Somebody
+            arriving at a phone number should know whether it belongs to a
+            person. */}
+        {demo ? (
+          <p className={`${t.face} mb-4 rounded-lg bg-warn/10 px-4 py-3 text-sm text-warn ring-1 ring-warn/40`}>
+            {t.demoBanner}
+          </p>
+        ) : null}
         {err ? (
           <p
             role="alert"

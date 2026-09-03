@@ -22,6 +22,7 @@ export type OpsStrings = {
   face: string;
 
   operations: string;
+  demoBanner: string;
   controlRoom: string;
   change: string;
   changeTeam: string;
@@ -126,6 +127,8 @@ const en: OpsStrings = {
   face: "",
 
   operations: "Operations",
+  demoBanner:
+    "Demonstration deployment. Every report, name and phone number on this board is fictional. Nothing here belongs to a real person.",
   controlRoom: "control room",
   change: "Change",
   changeTeam: "Change team",
@@ -241,6 +244,8 @@ const ur: OpsStrings = {
   face: "urdu-ui",
 
   operations: "آپریشنز",
+  demoBanner:
+    "یہ نمائشی تنصیب ہے۔ اس بورڈ پر موجود ہر اطلاع، نام اور فون نمبر فرضی ہے۔ ان میں سے کوئی کسی حقیقی شخص کا نہیں۔",
   controlRoom: "کنٹرول روم",
   change: "تبدیل کریں",
   changeTeam: "ٹیم تبدیل کریں",

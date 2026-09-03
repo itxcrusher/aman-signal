@@ -70,6 +70,29 @@ console.log("\nA passphrase is required, and checked:");
   log(expired === 401, "and an expired one is refused", `${expired}`);
 }
 
+console.log("\nA deployment that is not a demonstration never prints its own key:");
+{
+  /*
+   * The one direction that must never regress. A demonstration deployment
+   * publishes its passphrase deliberately; every other deployment must not, and
+   * the difference is a single environment variable, which is exactly the kind
+   * of switch that gets left on.
+   */
+  const html = await (await fetch(`${B}/ops/login`)).text();
+  const pass = process.env.OPS_PASSPHRASE ?? "";
+  const demo = process.env.AMANSIGNAL_DEMO === "1";
+  const leaked = pass.length > 0 && html.includes(pass);
+
+  if (demo) {
+    log(leaked, "this IS a demonstration deployment, so the sign-in page prints it");
+    log(/Demonstration deployment/i.test(html), "and says that is what it is");
+    log(/fictional/i.test(html), "and says the reports are fictional, so nobody mistakes them for people");
+  } else {
+    log(!leaked, "the passphrase is nowhere in the sign-in page");
+    log(!/Demonstration deployment/i.test(html), "and it does not claim to be a demonstration");
+  }
+}
+
 console.log("\nSigning out ends the session:");
 {
   const cookie = await opsCookie(B);

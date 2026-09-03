@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listIncidents, reportsFor, auditFor, messagesForIncident } from "@/lib/db";
 import { buildIncidentView, signalStrength } from "@/lib/incident";
+import { isDemo } from "@/lib/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,5 +89,10 @@ export async function GET() {
   // Sorted by signal strength as a starting view. This is a hint for scanning, not
   // a response order; the operator decides what is worked first.
   views.sort((a, b) => b.signal - a.signal);
-  return NextResponse.json({ incidents: views });
+  /*
+   * Carried with the incidents so the board can say what it is showing.
+   * A judge looking at a phone number needs to know whether it belongs to
+   * somebody.
+   */
+  return NextResponse.json({ incidents: views, demo: isDemo() });
 }
