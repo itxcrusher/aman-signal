@@ -92,7 +92,11 @@ body {
   /* The glyph box overflows its line box; without this, descenders clip. */
   padding-block: 0.15em;
   direction: rtl;
-  text-align: right;
+  /* No text-align here. `direction: rtl` already makes the initial `start`
+     resolve to the right, so declaring it changes nothing on its own and costs
+     something real: a declaration blocks inheritance, so any centred container
+     holding this class was silently un-centred. Direction decides the side;
+     the container decides the alignment. */
   font-size: 1.0625em;
 }
 
@@ -117,7 +121,9 @@ body {
   line-height: 2.3;
   padding-block: 0.1em;
   direction: rtl;
-  text-align: right;
+  /* Alignment is the container's decision, not this class's: see .urdu above.
+     This mattered more here than anywhere, because t.face resolves to this
+     class, so every centred button and label carrying it was pushed right. */
   /* Never below 18px anywhere a citizen reads: this is the size at which Nastaliq
      stops being a compromise, and the size crisis-UX research asks for anyway. */
   font-size: max(1.125rem, 1em);
@@ -134,13 +140,14 @@ body {
    is happening"), so every English string needs this, not just alignment. */
 .en {
   direction: ltr;
-  /* Alignment follows the page, not the element. This used to be forced to the
-     right, which was correct when English sat inside an RTL bilingual layout and
-     had to line up with the Urdu beside it. Now that a page is in one language
-     throughout, forcing it produced right-aligned English on an LTR screen. The
-     `direction` declaration stays and is the load-bearing half: without it the
-     bidi algorithm moves trailing punctuation to the visual start. */
-  text-align: start;
+  /* Alignment follows the page, not the element, and that means declaring
+     nothing. This was forced to `right` once, which was correct when English
+     sat inside an RTL bilingual layout and had to line up with the Urdu beside
+     it; that became right-aligned English on an LTR screen and was changed to
+     `start`. But `start` is the initial value, so re-declaring it only stopped
+     a centred container from centring. The `direction` declaration is the
+     load-bearing half: without it the bidi algorithm moves trailing
+     punctuation to the visual start. */
   font-family: var(--font-latin);
 }
 
