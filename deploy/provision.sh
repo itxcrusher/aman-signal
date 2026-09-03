@@ -35,6 +35,10 @@ SKIP_TLS="${AMANSIGNAL_SKIP_TLS:-0}"
 # assigned to them, not the district's reports, names and recordings. One
 # passphrase for both would hand every crew the control room.
 : "${FIELD_PASSPHRASE:?set FIELD_PASSPHRASE, the team passphrase for /field}"
+# Optional, and off unless set. A deployment that declares itself a
+# demonstration prints its own passphrases on the sign-in pages and marks its
+# board as fictional. Never set this on a deployment carrying real reports.
+AMANSIGNAL_DEMO="${AMANSIGNAL_DEMO:-0}"
 if [[ "$SKIP_TLS" != "1" ]]; then
   : "${AMANSIGNAL_DOMAIN:?set AMANSIGNAL_DOMAIN, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
   : "${CERTBOT_EMAIL:?set CERTBOT_EMAIL, or AMANSIGNAL_SKIP_TLS=1 to defer TLS}"
@@ -83,6 +87,7 @@ docker run -d --name "$CONTAINER" \
   -e DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" \
   -e OPS_PASSPHRASE="$OPS_PASSPHRASE" \
   -e FIELD_PASSPHRASE="$FIELD_PASSPHRASE" \
+  -e AMANSIGNAL_DEMO="$AMANSIGNAL_DEMO" \
   -v "$VOLUME":/data \
   --restart unless-stopped \
   amansignal >/dev/null
