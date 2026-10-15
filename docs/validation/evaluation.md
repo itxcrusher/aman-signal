@@ -81,7 +81,7 @@ The partial result on the first set is the conservative design working as specif
 
 ## Latency
 
-p50 1040ms, p95 1953ms, max 1953ms for text reports end to end, including validation. Audio reports measure higher (6-13s, see [production-verification.md](production-verification.md)). Intake never blocks on inference; results stream in behind an asynchronous job.
+p50 1040ms, p95 1953ms, max 1953ms for text reports end to end, including validation. Audio reports measure higher (6-13s, see [production-verification.md](production-verification.md)). Intake waits on inference. What protects the report is ordering: the submission and its media are written to disk before the model is called, and a report the model cannot read is queued for a person instead.
 
 ## Limitations
 
