@@ -46,8 +46,8 @@ Urdu speech understanding is the load-bearing assumption, so it was benchmarked 
 
 | Model | WER (n=8, 241 words) | Median latency | Range |
 | --- | --- | --- | --- |
-| qwen3.5-omni-flash | 12.9% | 7.3s | 6.2-9.9s |
-| qwen3.5-omni-plus | 10.4% | 10.5s | 9.4-12.9s |
+| qwen3.5-omni-flash | 12.9% | 7.0s | 6.2-9.9s |
+| qwen3.5-omni-plus | 10.4% | 10.4s | 6.8-12.9s |
 
 Extraction is measured against labelled cases in the register reporters actually use:
 

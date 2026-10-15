@@ -8,8 +8,8 @@ The baseline evaluation was measured against a public demo Space. This re-runs i
 
 | Model | Aggregate WER | Edits/words | Latency median | Latency range |
 | --- | --- | --- | --- | --- |
-| `qwen3.5-omni-flash` | **12.9%** | 31/241 | **7.3s** | 6.2-9.9s |
-| `qwen3.5-omni-plus` | **10.4%** | 25/241 | 10.5s | 9.4-12.9s |
+| `qwen3.5-omni-flash` | **12.9%** | 31/241 | **7.0s** | 6.2-9.9s |
+| `qwen3.5-omni-plus` | **10.4%** | 25/241 | 10.4s | 6.8-12.9s |
 
 Baseline for context: 9.7% (n=3, 113 words, demo Space). The production numbers land in the same band on nearly 3x the data, so **the capability claim holds on the shipping path**. Per-clip WER ranges 0% to 21.7%; errors remain mostly orthographic-normalisation-level on inspection, consistent with the baseline.
 
@@ -29,6 +29,6 @@ One clip through the full intake prompt (`qwen3.5-omni-flash`, 7.5s): returned p
 
 ## Decisions taken from this run
 
-1. **Default model: `qwen3.5-omni-flash`** (7.3s median; 2.5pt WER premium over plus is acceptable for interactive intake, and the confirmation step covers it). `plus` remains a config-level swap where accuracy matters more than speed.
+1. **Default model: `qwen3.5-omni-flash`** (7.0s median; 2.5pt WER premium over plus is acceptable for interactive intake, and the confirmation step covers it). `plus` remains a config-level swap where accuracy matters more than speed.
 2. Demo runs live inference; replay is a connectivity fallback only.
 3. Schema validation layer implements enum normalisation from day one.
