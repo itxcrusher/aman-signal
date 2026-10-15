@@ -24,6 +24,7 @@ import base64
 import io
 import json
 import os
+import statistics
 import sys
 import time
 
@@ -166,7 +167,7 @@ def cmd_wer(key, model, data_dir, max_clips):
             "aggregate_wer_pct": round(100.0 * tot_ed / tot_ref, 1),
             "total_ref_words": tot_ref, "total_edits": tot_ed,
             "latency_s": {"min": round(lat_sorted[0], 1),
-                          "median": round(lat_sorted[len(lat_sorted) // 2], 1),
+                          "median": round(statistics.median(lat_sorted), 1),
                           "max": round(lat_sorted[-1], 1)},
             "measured_at": time.strftime("%Y-%m-%d %H:%M PKT", time.localtime()),
         }
