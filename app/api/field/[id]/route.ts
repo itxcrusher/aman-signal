@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setIncidentStatus, audit, incidentsForTeam, markTeamMessagesSeen } from "@/lib/db";
+import { FIELD_COOKIE, fieldTeam } from "@/lib/ops-auth";
 
 export const runtime = "nodejs";
 
@@ -12,9 +13,10 @@ export const runtime = "nodejs";
  * moved to the school" is the update that stops a second boat being sent, and
  * until now there was nowhere to put it.
  *
- * A team may only touch incidents assigned to them. The check is a query rather
- * than a claim in the request, because a request that says which team it is can
- * say it is any team.
+ * A team may only touch incidents assigned to them. The team is the one the
+ * session was signed in as, read from the signed cookie; a team named in the
+ * request body is ignored, because a request that says which team it is can say
+ * it is any team.
  */
 
 /** What a crew can set. Verification and assignment stay with the control room. */
@@ -23,19 +25,19 @@ const FIELD_STATUSES = new Set(["responding", "resolved"]);
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
-  let body: { team?: string; status?: string; note?: string; seen?: boolean };
+  const team = await fieldTeam(req.cookies.get(FIELD_COOKIE)?.value);
+  if (!team) {
+    return NextResponse.json(
+      { error: "sign in again and choose your team", reason: "no_team" },
+      { status: 401 },
+    );
+  }
+
+  let body: { status?: string; note?: string; seen?: boolean };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "expected JSON" }, { status: 400 });
-  }
-
-  const team = body.team?.trim();
-  if (!team) {
-    return NextResponse.json(
-      { error: "team is required: every update is recorded against the crew that made it" },
-      { status: 400 },
-    );
   }
 
   // Assigned to them, or not theirs to touch.

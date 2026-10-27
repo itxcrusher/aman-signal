@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { fieldStringsFor } from "@/lib/i18n-field";
 import { labelFor, URGENCY, VULNERABLE, ROAD, type Lang } from "@/lib/i18n";
 
@@ -42,7 +43,6 @@ type Incident = {
   orders: { at: number; body: string; actor: string; seen: boolean }[];
 };
 
-const TEAM_KEY = "amansignal.field.team";
 const LANG_KEY = "amansignal.field.lang";
 
 function timeAgo(ts: number, lang: Lang) {
@@ -58,37 +58,42 @@ function timeAgo(ts: number, lang: Lang) {
 }
 
 export default function FieldBoard() {
-  const [team, setTeam] = useState<string | null | undefined>(undefined);
+  // Which crew this is comes from the server, which reads it from the signed
+  // session. It was chosen at sign-in and cannot be changed from this screen.
+  const [team, setTeam] = useState<string | null>(null);
+  const router = useRouter();
   const [lang, setLang] = useState<Lang>("ur");
-  const [teams, setTeams] = useState<string[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ id: string; ok: boolean } | null>(null);
+  // Set when the list could not be fetched. Before the first success there is
+  // no team to show, so this is what stands between a crew and a blank screen.
+  const [unreachable, setUnreachable] = useState(false);
 
   const t = fieldStringsFor(lang);
 
   useEffect(() => {
     try {
-      setTeam(localStorage.getItem(TEAM_KEY));
       const l = localStorage.getItem(LANG_KEY);
       if (l === "en" || l === "ur") setLang(l);
     } catch {
-      setTeam(null);
+      /* the default language stands */
     }
   }, []);
 
   const load = useCallback(async () => {
     try {
-      const url = team ? `/api/field?team=${encodeURIComponent(team)}` : "/api/field";
-      const res = await fetch(url);
+      const res = await fetch("/api/field");
       if (res.status === 401) {
         window.location.href = "/field/login";
         return;
       }
+      if (!res.ok) throw new Error(`field list ${res.status}`);
       const json = await res.json();
-      setTeams(json.teams ?? []);
+      setTeam(json.team ?? null);
       setIncidents(json.incidents ?? []);
+      setUnreachable(false);
 
       /**
        * Acknowledge orders once they are on screen, not when the list refreshes.
@@ -102,30 +107,31 @@ export default function FieldBoard() {
           fetch(`/api/field/${inc.id}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ team, seen: true }),
+            body: JSON.stringify({ seen: true }),
           }).catch(() => {});
         }
       }
     } catch {
       // Left as it was. A crew mid-response should keep the last known list on
       // screen rather than have it replaced by an error they cannot act on.
+      setUnreachable(true);
     }
-  }, [team]);
+  }, []);
 
   useEffect(() => {
-    if (team === undefined) return;
     load();
     const timer = setInterval(load, 20000);
     return () => clearInterval(timer);
-  }, [team, load]);
+  }, [load]);
 
-  function chooseTeam(name: string) {
+  /** A different team is a different sign-in, so changing crew means signing out. */
+  async function signOut() {
     try {
-      localStorage.setItem(TEAM_KEY, name);
+      await fetch("/api/field/session", { method: "DELETE" });
     } catch {
-      /* a crew with storage disabled still gets this session */
+      // Offline: the sign-in page replaces the session anyway.
     }
-    setTeam(name);
+    router.replace("/field/login");
   }
 
   function chooseLang(l: Lang) {
@@ -138,13 +144,12 @@ export default function FieldBoard() {
   }
 
   async function update(id: string, patch: { status?: string; note?: string }) {
-    if (!team) return;
     setBusy(id);
     try {
       const res = await fetch(`/api/field/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ team, ...patch }),
+        body: JSON.stringify(patch),
       });
       setFlash({ id, ok: res.ok });
       if (res.ok && patch.note) setNotes((n) => ({ ...n, [id]: "" }));
@@ -157,8 +162,26 @@ export default function FieldBoard() {
     }
   }
 
-  if (team === undefined) {
-    return <main className="ops-surface min-h-screen bg-ground" aria-busy="true" />;
+  if (!team) {
+    if (!unreachable) {
+      return <main className="ops-surface min-h-screen bg-ground" aria-busy="true" />;
+    }
+    return (
+      <main dir={t.dir} className="ops-surface min-h-screen bg-ground px-5 py-6 text-paper">
+        <div className="mx-auto max-w-md rounded-2xl bg-surface p-6 ring-1 ring-line">
+          <p role="alert" className={`${t.face} text-base text-paper`}>
+            {t.cannotReach}
+          </p>
+          <button
+            type="button"
+            onClick={signOut}
+            className={`${t.face} mt-4 cursor-pointer text-sm text-paper-soft underline`}
+          >
+            {t.signOut}
+          </button>
+        </div>
+      </main>
+    );
   }
 
   const langToggle = (
@@ -178,46 +201,6 @@ export default function FieldBoard() {
     </div>
   );
 
-  // ---------- choosing a crew ----------
-  if (!team) {
-    return (
-      <main dir={t.dir} className="ops-surface min-h-screen bg-ground px-5 py-6 text-paper">
-        <div className="mx-auto max-w-md">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <h1 className={`${t.face} text-lg font-semibold`}>{t.fieldTeam}</h1>
-            {langToggle}
-          </div>
-
-          <h2 className={`${t.face} text-base font-semibold`}>{t.whichTeam}</h2>
-          <p className={`${t.face} mt-1 text-sm leading-relaxed text-paper-soft`}>
-            {t.whichTeamWhy}
-          </p>
-
-          {teams.length ? (
-            <ul className="mt-5 space-y-2">
-              {teams.map((name) => (
-                <li key={name}>
-                  <button
-                    type="button"
-                    onClick={() => chooseTeam(name)}
-                    className={`${t.face} w-full cursor-pointer rounded-xl bg-surface px-4 py-4 text-start text-base ring-1 ring-line`}
-                  >
-                    {name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="mt-5 rounded-xl bg-surface p-5 ring-1 ring-line">
-              <p className={`${t.face} text-sm text-paper`}>{t.noTeamsYet}</p>
-              <p className={`${t.face} mt-1 text-sm text-paper-soft`}>{t.noTeamsYetWhy}</p>
-            </div>
-          )}
-        </div>
-      </main>
-    );
-  }
-
   // ---------- the crew's work ----------
   return (
     <main dir={t.dir} className="ops-surface min-h-screen bg-ground px-5 py-6 text-paper">
@@ -227,17 +210,10 @@ export default function FieldBoard() {
             <h1 className={`${t.face} text-lg font-semibold`}>{team}</h1>
             <button
               type="button"
-              onClick={() => {
-                try {
-                  localStorage.removeItem(TEAM_KEY);
-                } catch {
-                  /* nothing to do */
-                }
-                setTeam(null);
-              }}
+              onClick={signOut}
               className={`${t.face} cursor-pointer text-xs text-paper-soft underline`}
             >
-              {t.change}
+              {t.signOut}
             </button>
           </div>
           {langToggle}
@@ -422,7 +398,7 @@ export default function FieldBoard() {
                             {e.has_image ? (
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
-                                src={`/api/media/${e.report_id}?kind=image&team=${encodeURIComponent(team)}`}
+                                src={`/api/media/${e.report_id}?kind=image`}
                                 alt=""
                                 className="w-full rounded-lg border border-line"
                               />
@@ -431,7 +407,7 @@ export default function FieldBoard() {
                               <audio
                                 controls
                                 preload="none"
-                                src={`/api/media/${e.report_id}?kind=audio&team=${encodeURIComponent(team)}`}
+                                src={`/api/media/${e.report_id}?kind=audio`}
                                 className="mt-2 w-full"
                               />
                             ) : null}

@@ -41,8 +41,8 @@ const GATES = [
    * A crew standing at the edge of a flooded street benefits more from the
    * photograph than anyone at a desk does. But a field session must not be able
    * to walk every recording in the district, so this is the one place where
-   * passing the gate is not the whole answer: the route requires a field caller
-   * to name their team and checks the incident is actually assigned to it.
+   * passing the gate is not the whole answer: the route reads the team sealed
+   * into a field caller's session and checks the incident is assigned to it.
    * "The identifier is hard to guess" was never access control and still is not.
    */
   { prefix: "/api/media", accept: [OPS, FIELD], login: "/ops/login" },

@@ -16,7 +16,8 @@
  * verified in the proxy, which runs before the application and cannot be
  * expected to reach the database. Signing means a cookie cannot be forged
  * without the passphrase, and carrying the expiry inside the signature means an
- * old one cannot be replayed.
+ * old one cannot be replayed. A field session also carries its team inside the
+ * signature, chosen once at sign-in.
  */
 
 const ENCODER = new TextEncoder();
@@ -48,16 +49,31 @@ async function key(secret: string): Promise<CryptoKey> {
   );
 }
 
-function hex(buf: ArrayBuffer): string {
+function hex(buf: ArrayBuffer | Uint8Array): string {
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-export async function issueToken(secret: string, now = Date.now()): Promise<string> {
+/**
+ * A session token: an expiry, optionally who the session is for, and a
+ * signature over both.
+ *
+ * The subject is what fixes a field crew to one team. It is carried inside the
+ * signed part, so it cannot be changed without the passphrase, and a request
+ * has no way to say it is a different team from the one it signed in as. It is
+ * hex-encoded UTF-8, because team names are typed by people and may be in Urdu,
+ * and hex never contains the dot that separates the parts.
+ */
+export async function issueToken(
+  secret: string,
+  now = Date.now(),
+  subject?: string,
+): Promise<string> {
   const exp = now + SESSION_MS;
-  const sig = await crypto.subtle.sign("HMAC", await key(secret), ENCODER.encode(String(exp)));
-  return `${exp}.${hex(sig)}`;
+  const payload = subject ? `${exp}.${hex(ENCODER.encode(subject))}` : String(exp);
+  const sig = await crypto.subtle.sign("HMAC", await key(secret), ENCODER.encode(payload));
+  return `${payload}.${hex(sig)}`;
 }
 
 /**
@@ -71,17 +87,58 @@ function sameString(a: string, b: string): boolean {
   return diff === 0;
 }
 
+/** The token's subject when its signature and expiry hold; undefined when they do not. */
+async function readToken(
+  token: string | undefined,
+  secret: string,
+  now: number,
+): Promise<{ subject: string | null } | undefined> {
+  if (!token || !secret) return undefined;
+  const parts = token.split(".");
+  if (parts.length !== 2 && parts.length !== 3) return undefined;
+  const sig = parts[parts.length - 1];
+  const payload = parts.slice(0, -1).join(".");
+  const exp = Number(parts[0]);
+  if (!Number.isFinite(exp) || !sig || exp <= now) return undefined;
+  const expected = await crypto.subtle.sign("HMAC", await key(secret), ENCODER.encode(payload));
+  if (!sameString(sig, hex(expected))) return undefined;
+  if (parts.length === 2) return { subject: null };
+  const subjectHex = parts[1];
+  if (!/^(?:[0-9a-f]{2})+$/.test(subjectHex)) return undefined;
+  const bytes = new Uint8Array(subjectHex.match(/../g)!.map((b) => parseInt(b, 16)));
+  return { subject: new TextDecoder().decode(bytes) };
+}
+
 export async function verifyToken(
   token: string | undefined,
   secret: string,
   now = Date.now(),
 ): Promise<boolean> {
-  if (!token) return false;
-  const [expRaw, sig] = token.split(".");
-  const exp = Number(expRaw);
-  if (!Number.isFinite(exp) || !sig || exp <= now) return false;
-  const expected = await crypto.subtle.sign("HMAC", await key(secret), ENCODER.encode(expRaw));
-  return sameString(sig, hex(expected));
+  return (await readToken(token, secret, now)) !== undefined;
+}
+
+/**
+ * The team a field session was signed in as, or null.
+ *
+ * Null for no session, an expired or forged one, and a session issued before
+ * sessions carried a team. Every field route takes the team from here and from
+ * nowhere else: not from the query string, not from the body.
+ */
+export async function fieldTeam(token: string | undefined, now = Date.now()): Promise<string | null> {
+  const read = await readToken(token, process.env.FIELD_PASSPHRASE ?? "", now);
+  return read?.subject?.trim() || null;
+}
+
+/**
+ * A team name as given at sign-in: trimmed and bounded, and otherwise exactly
+ * as written, because it is matched against the name an operator typed at
+ * assignment (case-insensitively, on the trimmed value). The bound is the same
+ * one assignment applies, so every assignable name can be signed in as.
+ */
+export function normaliseTeam(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const name = raw.trim().slice(0, 120);
+  return name || null;
 }
 
 export function passphraseMatches(given: string, expected: string): boolean {

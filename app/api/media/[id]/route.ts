@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import { getReport, mediaDir, incidentsForTeam } from "@/lib/db";
-import { OPS_COOKIE, FIELD_COOKIE, verifyToken } from "@/lib/ops-auth";
+import { OPS_COOKIE, FIELD_COOKIE, verifyToken, fieldTeam } from "@/lib/ops-auth";
 
 export const runtime = "nodejs";
 
@@ -25,10 +25,10 @@ export const runtime = "nodejs";
  * Two kinds of caller reach this, and they are not owed the same thing. An
  * operator holds the district and may fetch anything in it. A field crew holds
  * one credential shared by every crew, so letting a field session fetch by id
- * alone would hand any crew every recording in the district. A field caller
- * therefore has to name their team, and the incident has to actually be
- * assigned to it; the check is a query, because a request that says which team
- * it is can say it is any team.
+ * alone would hand any crew every recording in the district. A field caller's
+ * team is the one sealed into their session at sign-in, and the incident has to
+ * actually be assigned to it. A team named in the URL is ignored, because a
+ * request that says which team it is can say it is any team.
  *
  * The unguessable id is not the protection and never was. It is what stops one
  * report's media being reachable from another's, nothing more.
@@ -61,9 +61,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
    * that is settled here rather than assumed from having got through the door.
    *
    * Deliberately ahead of the lookup. Answering "no such report" before asking
-   * whether the caller may have it would let a crew who names no team probe
-   * which ids exist, one 404 at a time. A caller who has not said who they are
-   * gets the same answer whether the id is real or invented.
+   * whether the caller may have it would let a session with no team probe
+   * which ids exist, one 404 at a time. A caller whose team is not known gets
+   * the same answer whether the id is real or invented, and a crew asking for a
+   * report that is not theirs gets the same answer as for one that does not
+   * exist.
    */
   const opsSecret = process.env.OPS_PASSPHRASE;
   const isOperator =
@@ -80,11 +82,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       return NextResponse.json({ error: "sign-in required" }, { status: 401 });
     }
 
-    team = req.nextUrl.searchParams.get("team")?.trim() || null;
+    team = await fieldTeam(req.cookies.get(FIELD_COOKIE)?.value);
     if (!team) {
       return NextResponse.json(
-        { error: "team is required: a crew may only open evidence for their own incidents" },
-        { status: 400 },
+        { error: "sign in again and choose your team", reason: "no_team" },
+        { status: 401 },
       );
     }
   }
@@ -94,8 +96,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   if (team) {
     // Not "is it assigned to any team", which would be every crew seeing
-    // everything, and not the team named in the request taken on trust. A
-    // report that is not theirs answers exactly as one that does not exist.
+    // everything. A report that is not theirs answers exactly as one that does
+    // not exist.
     const theirs =
       report.incident_id !== null &&
       incidentsForTeam(team).some((inc) => inc.id === report.incident_id);
@@ -127,7 +129,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       "Content-Length": String(body.length),
       // Evidence does not change once written, so it can be cached hard. Private
       // because it is somebody's emergency, not something a proxy should hold.
+      // Varied on the cookie because whether it may be served depends on which
+      // session asks: a phone signed out and back in as another crew must ask
+      // again rather than be answered from its cache.
       "Cache-Control": "private, max-age=86400, immutable",
+      Vary: "Cookie",
       "Content-Disposition": "inline",
     },
   });

@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   incidentsForTeam,
   reportsFor,
-  teamsWithWork,
   messagesForIncident,
   messagesForTeam,
 } from "@/lib/db";
 import { buildIncidentView } from "@/lib/incident";
+import { FIELD_COOKIE, fieldTeam } from "@/lib/ops-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,16 +23,20 @@ export const dynamic = "force-dynamic";
  * The audit trail is left out for the same reason: it answers "who decided
  * this", which is the control room's question, and would be noise on a phone
  * held in one hand.
+ *
+ * Which team is asking comes from the signed session, fixed at sign-in. A team
+ * named in the request is ignored: a request that says which team it is can
+ * say it is any team.
  */
 
 export async function GET(req: NextRequest) {
-  const team = req.nextUrl.searchParams.get("team")?.trim();
-
-  // Offered as a list so a responder picks their crew instead of typing it,
-  // which is the difference between arriving and staring at an empty screen
-  // because the assignment said "Boat Team 3" and they typed "boat team 3".
+  const team = await fieldTeam(req.cookies.get(FIELD_COOKIE)?.value);
   if (!team) {
-    return NextResponse.json({ teams: teamsWithWork(), incidents: [] });
+    // A session from before sessions carried a team. Signing in again fixes it.
+    return NextResponse.json(
+      { error: "sign in again and choose your team", reason: "no_team" },
+      { status: 401 },
+    );
   }
 
   const incidents = incidentsForTeam(team).map((inc) => {
@@ -115,5 +119,5 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({ team, incidents, teams: teamsWithWork() });
+  return NextResponse.json({ team, incidents });
 }

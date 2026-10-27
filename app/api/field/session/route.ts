@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FIELD_COOKIE, SESSION_MS, issueToken, passphraseMatches } from "@/lib/ops-auth";
+import {
+  FIELD_COOKIE,
+  SESSION_MS,
+  issueToken,
+  normaliseTeam,
+  passphraseMatches,
+} from "@/lib/ops-auth";
+import { teamsWithWork } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -10,6 +17,20 @@ export const runtime = "nodejs";
  * two surfaces show different things to different people. A crew signs in on a
  * phone, probably outdoors, probably once at the start of a shift, which is why
  * the session lasts a shift rather than an hour.
+ *
+ * The team is chosen here, once, and sealed into the signed session. Every
+ * field route reads it from there, so a request cannot claim to be a different
+ * crew from the one that signed in. Changing team means signing in again.
+ *
+ * Two calls, because a crew picks their team from the list of teams that have
+ * work rather than typing it blind, and that list is only shown to someone who
+ * has the passphrase. The first call carries the passphrase alone and gets the
+ * list back with no session; the second carries the passphrase and the chosen
+ * team and gets the session.
+ *
+ * What this does not do: every crew shares the passphrase, so anyone who holds
+ * it can sign in as any team. Separating teams from each other needs a
+ * credential per team, which this deliberately is not.
  */
 
 const WRONG_ANSWER_DELAY_MS = 400;
@@ -23,7 +44,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { passphrase?: string };
+  let body: { passphrase?: string; team?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -35,8 +56,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "that passphrase is not right" }, { status: 401 });
   }
 
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(FIELD_COOKIE, await issueToken(secret), {
+  const team = normaliseTeam(body.team);
+  if (!team) {
+    // The passphrase was right; what is missing is which crew this is.
+    return NextResponse.json({ needs_team: true, teams: teamsWithWork() });
+  }
+
+  const res = NextResponse.json({ ok: true, team });
+  res.cookies.set(FIELD_COOKIE, await issueToken(secret, Date.now(), team), {
     httpOnly: true,
     sameSite: "lax",
     secure: req.nextUrl.protocol === "https:",

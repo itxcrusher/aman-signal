@@ -25,10 +25,11 @@ export type FieldStrings = {
   chooseTeam: string;
   noTeamsYet: string;
   noTeamsYetWhy: string;
-  change: string;
   signOut: string;
 
   nothingAssigned: string;
+  /* Shown when the list cannot be fetched and no team is known yet. */
+  cannotReach: string;
   nothingAssignedWhy: string;
   assignedCount: (n: number) => string;
 
@@ -70,10 +71,10 @@ const en: FieldStrings = {
   chooseTeam: "Choose your team",
   noTeamsYet: "Nothing has been assigned to any team yet.",
   noTeamsYetWhy: "When a control room hands an incident to a team, it appears here.",
-  change: "Change",
   signOut: "Sign out",
 
   nothingAssigned: "Nothing assigned to you right now",
+  cannotReach: "Could not reach the server. This page keeps trying.",
   nothingAssignedWhy: "This page updates on its own. Leave it open.",
   assignedCount: (n) => `${n} assigned to you`,
 
@@ -116,10 +117,10 @@ const ur: FieldStrings = {
   chooseTeam: "اپنی ٹیم منتخب کریں",
   noTeamsYet: "ابھی کسی ٹیم کو کچھ نہیں سونپا گیا۔",
   noTeamsYetWhy: "جب کنٹرول روم کوئی واقعہ کسی ٹیم کے حوالے کرے گا، وہ یہاں نظر آئے گا۔",
-  change: "تبدیل کریں",
   signOut: "باہر نکلیں",
 
   nothingAssigned: "ابھی آپ کے لیے کوئی کام نہیں",
+  cannotReach: "سرور تک رسائی نہیں ہو سکی۔ یہ صفحہ خود دوبارہ کوشش کرتا رہے گا۔",
   nothingAssignedWhy: "یہ صفحہ خود اپ ڈیٹ ہوتا رہے گا۔ اسے کھلا رہنے دیں۔",
   assignedCount: (n) => `${n} آپ کے حوالے`,
 
