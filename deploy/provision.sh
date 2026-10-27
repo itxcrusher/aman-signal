@@ -15,9 +15,9 @@
 # geolocation on plain HTTP, so an IP-only host silently loses voice and location
 # capture, which is most of this product.
 #
-# AMANSIGNAL_SKIP_TLS=1 exists for the window before DNS resolves. DNS here is
-# Terraform-managed in crusher-infra and lands on its own schedule, so this lets
-# the app be deployed and exercised over the host's IP meanwhile, then re-run
+# AMANSIGNAL_SKIP_TLS=1 exists for the window before DNS resolves. A new record
+# can take a while to propagate, so this lets the app be deployed and exercised
+# over the host's IP meanwhile, then re-run
 # without the flag to add the certificate. It is a staging state, never a
 # finished one: leave a deployment here and voice reporting does not work.
 set -euo pipefail

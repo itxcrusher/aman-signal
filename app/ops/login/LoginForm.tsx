@@ -62,8 +62,8 @@ export default function OpsLogin({ demoPassphrase }: { demoPassphrase: string | 
         /*
          * Said as a decision, not left to look like an oversight.
          *
-         * An evaluator who reads the pitch and then finds an open board would be
-         * right to treat the claim about protecting reporters as decoration. So the
+         * A visitor who reads that reporters are protected and then finds an open
+         * board would be right to treat that claim as decoration. So the
          * page states why this deployment publishes its own key, and what would be
          * different about one that held real reports.
          */

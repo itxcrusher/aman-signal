@@ -10,7 +10,7 @@
  * hold reporters' names, phone numbers, photographs and recordings, and the
  * whole argument for gating it is that those belong to people who did not
  * consent to an audience. A deployment whose reports are invented owes nobody
- * that protection, and making an evaluator guess a passphrase to see the work
+ * that protection, and making a visitor guess a passphrase to see the work
  * protects nothing at all. A deployment with real reports on it must never set
  * this.
  */

@@ -2,7 +2,7 @@
 # Create the Alibaba Cloud infrastructure AmanSignal runs on, using the official CLI.
 #
 # Everything here is one small VM plus the networking it needs. That is deliberately
-# not Terraform: a single instance with a two-week life does not earn a provider,
+# not Terraform: a single short-lived instance does not earn a provider,
 # state backend and import story. This script is idempotent, so re-running it after a
 # failure converges rather than duplicating resources, which is the property that
 # actually matters for recoverability.
@@ -272,12 +272,13 @@ Instance ready.
   ssh        ssh -i $KEY_FILE root@$PUBLIC_IP
 
 Next:
-  1. Point DNS at it. In crusher-infra, set TF_VAR_AMANSIGNAL_ECS_IP=$PUBLIC_IP
-     in Terraform Cloud, then merge dev to main to apply the A record.
+  1. Point your domain's A record at $PUBLIC_IP.
   2. Wait for the record to resolve, then on the instance:
        git clone https://github.com/itxcrusher/aman-signal.git && cd aman-signal
        export DASHSCOPE_API_KEY=sk-...
-       export AMANSIGNAL_DOMAIN=amansignal.muhammadhassaanjaved.com
+       export OPS_PASSPHRASE=...
+       export FIELD_PASSPHRASE=...
+       export AMANSIGNAL_DOMAIN=amansignal.example.com
        export CERTBOT_EMAIL=you@example.com
        sudo -E bash deploy/provision.sh
 SUMMARY
