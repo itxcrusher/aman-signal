@@ -237,7 +237,40 @@ export async function extractReport(
   if (!norm.ok) {
     return { ok: false, repairs: norm.repairs, reason: "unparseable", error: norm.error, raw, model, latencyMs };
   }
-  return { ok: true, data: norm.data, repairs: norm.repairs, raw, model, latencyMs };
+  const data = input.audioPath ? norm.data : transcriptFromText(norm.data, input.text);
+  return { ok: true, data, repairs: norm.repairs, raw, model, latencyMs };
+}
+
+/** Arabic-script letters, the range Urdu is written in. */
+const ARABIC_SCRIPT = /[\u{0600}-\u{06FF}\u{0750}-\u{077F}\u{08A0}-\u{08FF}\u{FB50}-\u{FDFF}\u{FE70}-\u{FEFF}]/gu;
+const LATIN_LETTER = /[A-Za-z]/g;
+
+/**
+ * The transcript of a report that was not spoken.
+ *
+ * A transcript is a record of what someone said. With no voice note nobody said
+ * anything, and a model asked for a transcript anyway writes one: for a photo
+ * with no text it can invent a sentence, and typed words can come back
+ * paraphrased or in another script. Shown as a transcript, that would put the
+ * model's words in the reporter's mouth.
+ *
+ * So without audio the transcript is the reporter's own text, verbatim, in the
+ * field for the script it was written in, and empty when they wrote nothing.
+ * The other script is left empty rather than transliterated, because a
+ * transliteration is the model's rendering, not something the reporter wrote.
+ * The rest of the extraction (summary, type, indicators) is interpretation and
+ * is untouched.
+ */
+export function transcriptFromText(e: Extraction, text: string | null | undefined): Extraction {
+  const own = text?.trim() ?? "";
+  const arabic = own.match(ARABIC_SCRIPT)?.length ?? 0;
+  const latin = own.match(LATIN_LETTER)?.length ?? 0;
+  const urduScript = arabic > 0 && arabic >= latin;
+  return {
+    ...e,
+    transcript_urdu: urduScript ? own : "",
+    transcript_roman_urdu: urduScript ? "" : own,
+  };
 }
 
 /** Does the model's own missing_information list mention this concern? */

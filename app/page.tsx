@@ -692,6 +692,7 @@ export default function CitizenIntake() {
               onSpeak={speak}
               speaking={speaking}
               spoken={spokenSummary(extraction)}
+              hadVoice={audio !== null}
             />
 
             {photoDropped ? (

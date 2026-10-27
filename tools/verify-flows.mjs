@@ -96,7 +96,10 @@ let reporterId = null;
     .getAttribute("aria-pressed");
   log(nowOff === "false", "situation chips toggle", chipText);
 
-  log(await page.locator("#heard").count() === 1, "transcript is editable");
+  // Typed, with no voice note: the transcript is the reporter's own text, which
+  // the board and the crew read as written, so it is not offered back as
+  // something heard. The voice path is driven by tools/e2e.mjs.
+  log(await page.locator("#heard").count() === 0, "a typed report is not shown back as something heard");
   log(await page.locator('text=Road access').isVisible(), "road access can be corrected");
   await page.screenshot({ path: "shots/flow-review-editable.png", fullPage: true });
 

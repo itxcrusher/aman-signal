@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReport, updateReport, createIncident, audit, backfillLocation } from "@/lib/db";
 import { findDuplicate } from "@/lib/dedup";
-import { ExtractionSchema } from "@/lib/schema";
+import { ExtractionSchema, type Extraction } from "@/lib/schema";
+import { transcriptFromText } from "@/lib/extract";
 
 export const runtime = "nodejs";
 
@@ -57,7 +58,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "report has no extraction to confirm" }, { status: 409 });
   }
 
-  let extraction = JSON.parse(row.extraction_json);
+  // A report nobody spoke has the reporter's own text as its transcript. That is
+  // set at intake and re-applied here, to the stored reading and to any
+  // correction: a draft stored before the rule must not carry the model's
+  // invented transcript onto the board, and a correction must not replace the
+  // words the reporter typed, which are what every operator and crew surface
+  // shows.
+  const stored = JSON.parse(row.extraction_json) as Extraction;
+  const ownWords = (e: Extraction) => (row.audio_path ? e : transcriptFromText(e, row.raw_text));
+  const modelReading = ownWords(stored);
+  let extraction: Extraction = modelReading;
 
   // A citizen correction replaces the AI's interpretation, but must still satisfy
   // the schema; a malformed correction is rejected rather than stored.
@@ -69,7 +79,7 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    extraction = parsed.data;
+    extraction = ownWords(parsed.data);
   }
 
   const answers = Array.isArray(body.answers) ? body.answers.slice(0, 2) : [];

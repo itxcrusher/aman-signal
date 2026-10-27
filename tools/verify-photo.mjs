@@ -1,5 +1,6 @@
 import { authoriseOpsRequests } from "./ops-session.mjs";
 
+import { readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 /**
@@ -137,6 +138,47 @@ console.log("\nUnreadable photo, with other content:");
 }
 
 await b.close();
+
+// ---------- 3. With no voice note, the transcript is the reporter's own words ----------
+//
+// A transcript records what someone said. A photo sent with no words came back
+// with an invented Urdu sentence as its transcript, and typed words came back
+// paraphrased, and both were shown to the reporter as "what we heard" and to
+// the operator as evidence. The summary may interpret; the transcript may not.
+console.log("\nWith no voice note, the transcript is the reporter's own words:");
+{
+  const photo = () =>
+    new File([readFileSync("/tmp/imgtest/flood.jpg")], "flood.jpg", { type: "image/jpeg" });
+  const send = async (fields) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+    const res = await fetch(`${B}/api/report`, { method: "POST", body: fd });
+    return { res, json: await res.json().catch(() => ({})) };
+  };
+
+  const onlyPhoto = await send({ image: photo(), reporter_id: `photo-transcript-${RUN}` });
+  const e1 = onlyPhoto.json.extraction;
+  log(onlyPhoto.res.ok, "a photo with no words is accepted", `${onlyPhoto.res.status}`);
+  log(
+    e1?.transcript_urdu === "" && e1?.transcript_roman_urdu === "",
+    "and no transcript is invented for it",
+    JSON.stringify([e1?.transcript_urdu, e1?.transcript_roman_urdu]).slice(0, 80),
+  );
+  log(Boolean(e1?.english_summary), "while the model still describes what it sees");
+
+  const typed = `pani ghar mein aa gaya hai, chhat par chaar log hain, gali ${RUN}`;
+  const withText = await send({ text: typed, image: photo(), reporter_id: `photo-transcript-${RUN}` });
+  const e2 = withText.json.extraction;
+  log(e2?.transcript_roman_urdu === typed, "typed words sent with a photo are kept verbatim",
+      (e2?.transcript_roman_urdu ?? "").slice(0, 60));
+  log(e2?.transcript_urdu === "", "and are not re-rendered by the model in another script",
+      (e2?.transcript_urdu ?? "").slice(0, 40));
+
+  const urdu = `پانی گھر میں آ گیا ہے، چھت پر تین لوگ ہیں، گلی ${RUN}`;
+  const inUrdu = await send({ text: urdu, reporter_id: `photo-transcript-${RUN}` });
+  log(inUrdu.json.extraction?.transcript_urdu === urdu, "Urdu typed in Urdu script is kept verbatim");
+}
+
 const passed = out.filter(Boolean).length;
 console.log(`\n${passed}/${out.length} passed`);
 process.exit(passed === out.length ? 0 : 1);

@@ -384,7 +384,10 @@ export default function IncidentDetail({
                       {r.raw_text}
                     </p>
                   ) : null}
-                  {r.extraction?.transcript_urdu ? (
+                  {/* A transcript only of a voice note. A typed report's own
+                      words are the text above; a model's rendering of a photo
+                      or of typing is not something the reporter said. */}
+                  {r.has_audio && r.extraction?.transcript_urdu ? (
                     <p className="urdu mb-2 text-sm text-paper">{r.extraction.transcript_urdu}</p>
                   ) : null}
 

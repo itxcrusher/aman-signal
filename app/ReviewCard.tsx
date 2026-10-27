@@ -28,6 +28,7 @@ export default function ReviewCard({
   onSpeak,
   speaking,
   spoken,
+  hadVoice,
 }: {
   extraction: Extraction;
   onChange: (e: Extraction) => void;
@@ -36,6 +37,8 @@ export default function ReviewCard({
   onSpeak: (s: string) => void;
   speaking: boolean;
   spoken: string;
+  /** Whether a voice note was sent. Without one the transcript is the reporter's own typing. */
+  hadVoice: boolean;
 }) {
   const set = (patch: Partial<Extraction>) => onChange({ ...extraction, ...patch });
 
@@ -158,9 +161,12 @@ export default function ReviewCard({
           </div>
         </div>
 
-        {/* The transcript. At roughly 12% word error rate this is the field most
-            likely to be wrong, and the one the reporter is best placed to fix. */}
-        {extraction.transcript_urdu || extraction.transcript_roman_urdu ? (
+        {/* The transcript of a voice note. At roughly 12% word error rate this
+            is the field most likely to be wrong, and the one the reporter is
+            best placed to fix. A typed report has no transcript to check: its
+            transcript is the reporter's own text, which the board and the
+            crew read as written. */}
+        {hadVoice && (extraction.transcript_urdu || extraction.transcript_roman_urdu) ? (
           <div>
             <label htmlFor="heard" className={`${t.face} mb-2 block text-sm text-ink-soft`}>
               {t.whatWeHeard}
