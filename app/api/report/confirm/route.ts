@@ -24,11 +24,29 @@ function pruneMissing(missing: unknown, field: string): string[] {
   return (missing as string[]).filter((m) => typeof m === "string" && !pattern.test(m));
 }
 
+/**
+ * The fields whose value differs between the model's reading and the reporter's.
+ * Lists compare as sets: a chip turned off and on again is not a correction.
+ */
+function changedFields(before: Extraction, after: Extraction): (keyof Extraction)[] {
+  const same = (x: unknown, y: unknown) =>
+    Array.isArray(x) && Array.isArray(y)
+      ? JSON.stringify([...x].sort()) === JSON.stringify([...y].sort())
+      : JSON.stringify(x) === JSON.stringify(y);
+  return (Object.keys(after) as (keyof Extraction)[]).filter((k) => !same(before[k], after[k]));
+}
 
 /**
  * Citizen confirmation. Until this runs, a report is a draft and is not visible to
- * dispatchers. Corrections the citizen makes are recorded as clarification answers,
- * so the operator can see what the AI got wrong and what the human fixed.
+ * dispatchers.
+ *
+ * Corrections the citizen makes on this screen replace the model's reading, so
+ * the incident is built from what the person who was there confirmed. The
+ * model's value for every field they changed is kept beside it in
+ * citizen_corrections_json, which the incident's evidence panel shows, and
+ * when the report becomes or joins an incident the audit line names those
+ * fields. Clarification answers are recorded separately, as the question and
+ * the answer.
  */
 export async function POST(req: NextRequest) {
   let body: {
@@ -83,6 +101,30 @@ export async function POST(req: NextRequest) {
   }
 
   const answers = Array.isArray(body.answers) ? body.answers.slice(0, 2) : [];
+
+  // Compared before clarification answers and the address are applied, so this
+  // lists only what the reporter changed on the card. A field the reporter
+  // filled in because they were asked for it is recorded as the question and
+  // its answer, not as a correction: the model leaving an unstated count empty
+  // was right, not a mistake.
+  const answered = new Set(answers.filter((a) => a.answer?.trim()).map((a) => a.field));
+  const corrected = changedFields(modelReading, extraction).filter(
+    (k) => !(answered.has(k) && modelReading[k] === null),
+  );
+  const correctedNote = corrected.length ? ` corrected=${corrected.join(",")}` : "";
+  if (corrected.length) {
+    updateReport(rid, {
+      citizen_corrections_json: JSON.stringify({
+        fields: corrected,
+        model: Object.fromEntries(corrected.map((k) => [k, modelReading[k]])),
+      }),
+    });
+  }
+  // A count the reporter supplied resolves the gap that asked for it.
+  if (corrected.includes("people_affected") && extraction.people_affected !== null) {
+    extraction.missing_information = pruneMissing(extraction.missing_information, "people_affected");
+  }
+
   // Clarification answers are evidence: appended to the location the citizen gave,
   // never silently overwriting what they originally said.
   for (const a of answers) {
@@ -143,7 +185,6 @@ export async function POST(req: NextRequest) {
   // Does this report describe an emergency already known to the operators?
   const decision = await findDuplicate(extraction, lat, lon);
   const answerNote = answers.length ? ` answers=${answers.map((a) => a.field).join(",")}` : "";
-  const correctedNote = body.corrected !== undefined ? " corrected=yes" : "";
 
   if (decision.action === "possible") {
     // Held, not merged and not split. A wrong merge hides an emergency; a wrong

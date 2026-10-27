@@ -22,6 +22,8 @@ export type Report = {
   model: string | null;
   repairs: string[];
   clarifications: { field: string; question: string; answer: string }[];
+  /** Fields the reporter changed on the confirmation screen, with what the model had read. */
+  citizen_corrections: { fields: string[]; model: Record<string, unknown> } | null;
   extraction: {
     transcript_urdu: string;
     transcript_roman_urdu: string;

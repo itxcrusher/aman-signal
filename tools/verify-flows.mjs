@@ -112,6 +112,55 @@ let reporterId = null;
   await page.locator('button:has-text("Confirm and send")').click();
   await page.waitForSelector("text=has been received", { timeout: 120000 });
 
+  // ---------- 3b. What the reporter corrected is what was stored ----------
+  //
+  // The count typed and the chip turned off above must reach the server as the
+  // reporter left them. Checked on whichever surface the report reached.
+  {
+    const CHIP_KEY = {
+      "People trapped": "trapped_people",
+      "Medical help needed": "medical_need",
+      "Water rising": "rising_water",
+      "Access blocked": "blocked_access",
+      "No safe route": "no_safe_route",
+      "Structural damage": "structural_damage",
+    }[chipText.trim()];
+    const { incidents } = await (await fetch(`${BASE}/api/incidents`)).json();
+    const { pending } = await (await fetch(`${BASE}/api/duplicates`)).json();
+    const asReport = incidents.flatMap((i) => i.reports).find((r) => (r.raw_text ?? "").includes(RUN));
+    const asHeld = (pending ?? []).find((r) => (r.raw_text ?? "").includes(RUN));
+    const people = asReport ? asReport.extraction?.people_affected : asHeld?.people_affected;
+    const urgency = (asReport ? asReport.extraction?.urgency_indicators : asHeld?.urgency) ?? [];
+    log(people === 7, "the corrected count is what was stored", String(people));
+    log(Boolean(CHIP_KEY) && !urgency.includes(CHIP_KEY), "and the chip turned off stays off",
+        `${CHIP_KEY} in [${urgency.join(", ")}]`);
+    if (asReport) {
+      const c = asReport.citizen_corrections;
+      const fields = c?.fields ?? [];
+      log(fields.includes("urgency_indicators"), "the board can tell which fields the reporter corrected",
+          fields.join(","));
+      // A count the reporter was asked for is recorded as the answer to that
+      // question; a count they changed is recorded as a correction of the model.
+      const answeredCount = (asReport.clarifications ?? []).some(
+        (q) => q.field === "people_affected" && q.answer === "7",
+      );
+      log(
+        fields.includes("people_affected")
+          ? "people_affected" in (c?.model ?? {}) && c.model.people_affected !== 7
+          : answeredCount,
+        "and what the model had read, or what the reporter was asked",
+        fields.includes("people_affected") ? `model read ${c.model.people_affected}` : "answered",
+      );
+      const inc = incidents.find((i) => i.reports.some((r) => r.id === asReport.id));
+      log(
+        (inc?.audit ?? []).some(
+          (a) => a.action === "report_confirmed" && /corrected=\S*urgency_indicators/.test(a.detail ?? ""),
+        ),
+        "and the audit line names the corrected fields",
+      );
+    }
+  }
+
   // ---------- 4. Two ways forward after sending ----------
   const done = await page.locator("main").innerText();
   log(/View my report/.test(done), "offers to follow the report");

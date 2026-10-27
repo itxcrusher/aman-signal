@@ -107,6 +107,10 @@ export type OpsStrings = {
   reporter: string;
   notGiven: string;
   asked: string;
+  /* Fields the reporter changed on their confirmation screen, shown with what
+     the model had read, so the board can tell a human correction from a reading. */
+  reporterCorrected: string;
+  modelRead: string;
   stillUnknown: string;
   repairs: string;
   auditTrail: string;
@@ -224,6 +228,8 @@ const en: OpsStrings = {
   reporter: "Reporter",
   notGiven: "not given",
   asked: "Asked",
+  reporterCorrected: "Corrected by the reporter",
+  modelRead: "model read",
   stillUnknown: "Still unknown",
   repairs: "Schema repairs",
   auditTrail: "Audit trail",
@@ -339,6 +345,8 @@ const ur: OpsStrings = {
   reporter: "اطلاع دینے والا",
   notGiven: "نہیں بتایا",
   asked: "پوچھا گیا",
+  reporterCorrected: "اطلاع دینے والے نے درست کیا",
+  modelRead: "ماڈل نے پڑھا تھا",
   stillUnknown: "ابھی معلوم نہیں",
   repairs: "اسکیما درستیاں",
   auditTrail: "ریکارڈ",

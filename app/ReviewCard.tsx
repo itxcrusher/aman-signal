@@ -108,7 +108,11 @@ export default function ReviewCard({
             onChange={(e) => {
               const v = e.target.value.trim();
               const n = Number.parseInt(v, 10);
-              set({ people_affected: v === "" || !Number.isFinite(n) ? null : Math.max(0, n) });
+              // Bounded as the field is, because the value is now sent and
+              // validated: a mistyped run of digits must not fail the report.
+              set({
+                people_affected: v === "" || !Number.isFinite(n) ? null : Math.min(9999, Math.max(0, n)),
+              });
             }}
             className="w-28 rounded-xl border border-day-line bg-day px-4 py-3 text-lg font-semibold outline-none focus:border-brand"
           />

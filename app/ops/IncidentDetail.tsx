@@ -6,6 +6,38 @@ import type { OpsStrings } from "@/lib/i18n-ops";
 import { labelFor, URGENCY, VULNERABLE, ROAD, type Lang } from "@/lib/i18n";
 import { URGENCY_INDICATORS, VULNERABLE_GROUPS, ROAD_ACCESS } from "@/lib/schema";
 
+/** A field the reporter corrected, named in the board's own vocabulary where it has one. */
+function fieldName(field: string, t: OpsStrings): string {
+  const named: Record<string, string> = {
+    urgency_indicators: t.situation,
+    people_affected: t.peopleAffected,
+    vulnerable_people: t.vulnerable,
+    road_access: t.roadAccess,
+    english_summary: t.summary,
+    transcript_urdu: t.voiceNote,
+    transcript_roman_urdu: t.voiceNote,
+  };
+  return named[field] ?? field.replace(/_/g, " ");
+}
+
+/** What the model had read for that field, before the reporter changed it. */
+function modelValue(field: string, value: unknown, lang: Lang, t: OpsStrings): string {
+  const table =
+    field === "urgency_indicators"
+      ? URGENCY
+      : field === "vulnerable_people"
+        ? VULNERABLE
+        : field === "road_access"
+          ? ROAD
+          : null;
+  if (value === null || value === undefined || value === "") return t.notGiven;
+  if (Array.isArray(value)) {
+    if (!value.length) return t.notGiven;
+    return value.map((v) => (table ? labelFor(table, String(v), lang) : String(v))).join(", ");
+  }
+  return table ? labelFor(table, String(value), lang) : String(value);
+}
+
 /**
  * Everything about one incident, on demand.
  *
@@ -400,6 +432,19 @@ export default function IncidentDetail({
                           </span>
                           <span className="text-paper">&rarr; {c.answer}</span>
                         </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {r.citizen_corrections?.fields?.length ? (
+                    <div className="mb-2 rounded-lg bg-surface-2 p-2 text-xs">
+                      <span className="text-paper-soft">{t.reporterCorrected}: </span>
+                      {r.citizen_corrections.fields.map((f, i) => (
+                        <span key={f} className="text-paper">
+                          {i ? "; " : ""}
+                          {fieldName(f, t)} ({t.modelRead}:{" "}
+                          <bdi>{modelValue(f, r.citizen_corrections!.model[f], lang, t)}</bdi>)
+                        </span>
                       ))}
                     </div>
                   ) : null}

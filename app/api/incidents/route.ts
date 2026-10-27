@@ -81,6 +81,8 @@ export async function GET() {
         model: r.model,
         repairs: r.repairs_json ? JSON.parse(r.repairs_json) : [],
         clarifications: r.clarifications_json ? JSON.parse(r.clarifications_json) : [],
+        // The model's value for each field the reporter changed before sending.
+        citizen_corrections: r.citizen_corrections_json ? JSON.parse(r.citizen_corrections_json) : null,
         extraction: view.extractions[i] ?? null,
       })),
     };

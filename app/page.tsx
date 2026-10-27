@@ -376,6 +376,9 @@ export default function CitizenIntake() {
     setPhase("sending");
     const payload = {
       report_id: reportId,
+      // What the reporter confirmed, including anything they corrected on the
+      // card. Revalidated against the schema on the server.
+      corrected: extraction ?? undefined,
       // Sent only when they actually moved it, so an untouched map never
       // overwrites a good fix with a coordinate nobody chose.
       pin: pin ?? undefined,

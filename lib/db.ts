@@ -109,6 +109,11 @@ const MIGRATIONS: Record<string, Record<string, string>> = {
     // second one. Only queued reports carry it; a live submission has a
     // response to rely on and never retries blind.
     client_key: "TEXT",
+    // What the model read, for each field the reporter changed on the
+    // confirmation screen. The corrected reading is what the incident uses; this
+    // keeps the machine's version beside it, so an operator can see what the
+    // model got wrong and what the person who was there fixed.
+    citizen_corrections_json: "TEXT",
   },
   messages: {
     /**
@@ -180,6 +185,7 @@ export type ReportRow = {
   citizen_safe_at: number | null;
   queued_offline: number | null;
   client_key: string | null;
+  citizen_corrections_json: string | null;
   extraction_json: string | null;
   repairs_json: string | null;
   clarifications_json: string | null;
@@ -287,6 +293,7 @@ export function getReport(rid: string): ReportRow | undefined {
 const REPORT_FIELDS = new Set([
   "status", "incident_id", "raw_text", "audio_path", "image_path", "lat", "lon",
   "accuracy_m", "location_text", "pin_adjusted", "queued_offline", "client_key", "extraction_json", "repairs_json", "provenance_json",
+  "citizen_corrections_json",
   "clarifications_json", "dedup_json", "model", "latency_ms",
 ]);
 
