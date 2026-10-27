@@ -29,6 +29,7 @@ export default function ReviewCard({
   speaking,
   spoken,
   hadVoice,
+  peopleQuestion,
 }: {
   extraction: Extraction;
   onChange: (e: Extraction) => void;
@@ -39,6 +40,8 @@ export default function ReviewCard({
   spoken: string;
   /** Whether a voice note was sent. Without one the transcript is the reporter's own typing. */
   hadVoice: boolean;
+  /** Set when the count is the gap worth asking about; asked here, on its own field. */
+  peopleQuestion: string | null;
 }) {
   const set = (patch: Partial<Extraction>) => onChange({ ...extraction, ...patch });
 
@@ -93,9 +96,17 @@ export default function ReviewCard({
 
         {/* People affected. Never summed across reports at the incident layer, but
             here it is simply what this one person says about their own situation. */}
-        <div>
-          <label htmlFor="people" className={`${t.face} mb-2 block text-sm text-ink-soft`}>
-            {t.peopleAffected}
+        {/* When the count is missing and people are trapped, the clarifying
+            question is asked here, as this field's label, rather than as a
+            second box lower down that would hold a second copy of the number. */}
+        <div className={peopleQuestion ? "rounded-xl bg-brand/5 p-3 ring-1 ring-brand" : undefined}>
+          <label
+            htmlFor="people"
+            className={`${t.face} mb-2 block ${
+              peopleQuestion ? "text-base font-semibold text-ink" : "text-sm text-ink-soft"
+            }`}
+          >
+            {peopleQuestion ?? t.peopleAffected}
           </label>
           <input
             id="people"

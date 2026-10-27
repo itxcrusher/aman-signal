@@ -123,9 +123,9 @@ export default function Onboarding({ onDone }: { onDone: (p: Profile) => void })
       <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-between px-5 py-8">
         <div>
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <h1 className="text-brand">
-                <Logo className="h-7" />
+                <Logo className="h-7 w-auto max-w-full" />
               </h1>
               <p className={`${t.face} mt-2 text-xl font-bold`}>{t.tagline}</p>
             </div>

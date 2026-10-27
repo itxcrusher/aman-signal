@@ -333,10 +333,11 @@ export default function MyReports({
                       }`}
                     >
                       {updateImage ? t.photoAttached : t.attachPhoto}
+                      {/* No capture attribute, as on the report form: it would
+                          force the camera and hide photos already taken. */}
                       <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         className="sr-only"
                         onChange={async (e) => {
                           const picked = e.target.files?.[0] ?? null;

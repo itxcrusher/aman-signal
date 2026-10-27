@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import type { Extraction } from "@/lib/schema";
 import Onboarding from "./Onboarding";
 import dynamic from "next/dynamic";
@@ -53,6 +53,16 @@ function spokenSummary(e: Extraction): string {
   return `ہم نے یہ سمجھا ہے کہ ${parts.join("، اور ")}۔`;
 }
 
+/**
+ * The head-count question, while it still applies. It was chosen at intake
+ * because people were reported trapped with no number; if the reporter has
+ * since said nobody is trapped, it is no longer the question to ask.
+ */
+function peopleQuestionFor(qs: Question[], e: Extraction | null): Question | undefined {
+  const q = qs.find((x) => x.field === "people_affected");
+  return q && e?.urgency_indicators.includes("trapped_people") ? q : undefined;
+}
+
 const VULNERABLE_LABEL: Record<string, { ur: string; en: string }> = {
   elderly: { ur: "بزرگ", en: "Elderly" },
   children: { ur: "بچے", en: "Children" },
@@ -92,6 +102,18 @@ export default function CitizenIntake() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [reportId, setReportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The attached photo, shown back on the confirmation screen.
+   *
+   * The reporter is asked to confirm what was understood, and the photo is part
+   * of what was sent; without it on screen they cannot tell whether the right
+   * one went, or whether one went at all.
+   */
+  const photoUrl = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
+  useEffect(() => () => {
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+  }, [photoUrl]);
 
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -375,6 +397,12 @@ export default function CitizenIntake() {
   async function confirmReport() {
     setPhase("sending");
     setError(null);
+    // The head count is asked on the card itself, so its answer is the card's
+    // value: one field, one number, whichever way the reporter reached it.
+    const peopleQuestion = peopleQuestionFor(questions, extraction);
+    const typedAnswers = questions
+      .filter((q) => q.field !== "people_affected" && answers[q.field]?.trim())
+      .map((q) => ({ field: q.field, question: q.en, answer: answers[q.field].trim() }));
     const payload = {
       report_id: reportId,
       // What the reporter confirmed, including anything they corrected on the
@@ -384,9 +412,12 @@ export default function CitizenIntake() {
       // overwrites a good fix with a coordinate nobody chose.
       pin: pin ?? undefined,
       address: address.trim() || undefined,
-      answers: questions
-        .filter((q) => answers[q.field]?.trim())
-        .map((q) => ({ field: q.field, question: q.en, answer: answers[q.field].trim() })),
+      answers: [
+        ...(peopleQuestion && extraction && extraction.people_affected !== null
+          ? [{ field: "people_affected", question: peopleQuestion.en, answer: String(extraction.people_affected) }]
+          : []),
+        ...typedAnswers,
+      ],
     };
     let res: Response;
     try {
@@ -512,9 +543,12 @@ export default function CitizenIntake() {
     },
   ];
 
-  const visibleQuestions = address.trim()
-    ? questions.filter((q) => q.field !== "location")
-    : questions;
+  /* The head count is asked once, on the card, where the reporter can already
+     see and correct it, and never again underneath it. */
+  const peopleQuestion = peopleQuestionFor(questions, extraction);
+  const visibleQuestions = questions.filter(
+    (q) => q.field !== "people_affected" && !(address.trim() && q.field === "location"),
+  );
 
   const locationStatus = coords
     ? coords.accuracy > 0
@@ -529,10 +563,13 @@ export default function CitizenIntake() {
   return (
     <main dir={t.dir} className="min-h-screen bg-day text-ink">
       <div className="mx-auto max-w-xl px-5 py-6">
+        {/* The text column gives way, never the switch: the logo alone is about
+            210px wide, which with the switch beside it is wider than a 360px
+            phone, so the logo is allowed to shrink. */}
         <header className="mb-6 flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-brand">
-              <Logo className="h-7" />
+              <Logo className="h-7 w-auto max-w-full" />
             </h1>
             <p className={`${t.face} mt-1 text-lg font-semibold`}>{t.headerAction}</p>
           </div>
@@ -629,10 +666,13 @@ export default function CitizenIntake() {
                       <span className={`${t.face} text-center text-xs font-medium leading-tight`}>
                         {a.label}
                       </span>
+                      {/* No capture attribute: it opens the camera directly and
+                          hides the gallery, and a photo of the water taken a
+                          minute ago is usually already in the gallery. Without
+                          it the phone offers both. */}
                       <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         className="sr-only"
                         onChange={async (e) => {
                           const picked = e.target.files?.[0] ?? null;
@@ -724,7 +764,31 @@ export default function CitizenIntake() {
               speaking={speaking}
               spoken={spokenSummary(extraction)}
               hadVoice={audio !== null}
+              peopleQuestion={
+                peopleQuestion ? (profile.lang === "ur" ? peopleQuestion.ur : peopleQuestion.en) : null
+              }
             />
+
+            {photoUrl ? (
+              <section key={photoUrl} className="rounded-2xl bg-day-surface p-5 ring-1 ring-day-line">
+                <h3 className={`${t.face} mb-3 text-base font-semibold`}>{t.yourPhoto}</h3>
+                {/* A local object URL for the file on this phone, not a server
+                    asset, so next/image has nothing to optimise. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photoUrl}
+                  alt={t.yourPhoto}
+                  className="max-h-72 w-full rounded-xl object-contain ring-1 ring-day-line"
+                  onError={(e) => {
+                    // A file the browser cannot decode would show a broken
+                    // image under a heading. Neither is shown; keyed on the URL,
+                    // so the next photo gets a fresh section.
+                    const section = e.currentTarget.closest("section");
+                    if (section) section.style.display = "none";
+                  }}
+                />
+              </section>
+            ) : null}
 
             {photoDropped ? (
               <p role="status" className={`${t.face} rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200`}>

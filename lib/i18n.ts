@@ -111,6 +111,8 @@ export type Strings = {
   peopleAffected: string;
   vulnerablePresent: string;
   whatWeHeard: string;
+  /* The attached photo, shown back on the confirmation screen. */
+  yourPhoto: string;
   edit: string;
   doneEditing: string;
   addDetail: string;
@@ -144,6 +146,8 @@ export type Strings = {
   addressSaved: string;
   addressOnly: string;
   findOnMap: string;
+  /* Why the map search cannot run yet, shown beside it while it cannot. */
+  findOnMapNeedsAddress: string;
   searchingMap: string;
   geocodeNone: string;
   geocodePick: string;
@@ -278,6 +282,7 @@ const ur: Strings = {
   peopleAffected: "متاثرہ افراد",
   vulnerablePresent: "کمزور افراد موجود ہیں",
   whatWeHeard: "ہم نے یہ سنا",
+  yourPhoto: "آپ کی تصویر",
   edit: "درست کریں",
   doneEditing: "ٹھیک ہے",
   addDetail: "اور شامل کریں",
@@ -308,6 +313,7 @@ const ur: Strings = {
   addressSaved: "پتہ لکھا جا چکا ہے",
   addressOnly: "پتہ لکھا ہے، نقشے پر نشان نہیں",
   findOnMap: "نقشے پر تلاش کریں",
+  findOnMapNeedsAddress: "نقشے پر تلاش کے لیے پہلے اوپر اپنا پتہ لکھیں۔",
   searchingMap: "تلاش ہو رہی ہے...",
   geocodeNone: "یہ پتہ نقشے پر نہیں ملا۔ فکر نہ کریں، آپ کا لکھا ہوا پتہ پھر بھی ٹیم تک پہنچے گا۔",
   geocodePick: "کیا ان میں سے کوئی درست ہے؟ دبا کر نشان لگائیں۔",
@@ -442,6 +448,7 @@ const en: Strings = {
   peopleAffected: "People affected",
   vulnerablePresent: "Vulnerable people present",
   whatWeHeard: "What we heard",
+  yourPhoto: "Your photo",
   edit: "Edit",
   doneEditing: "Done",
   addDetail: "Add",
@@ -472,6 +479,7 @@ const en: Strings = {
   addressSaved: "Address written",
   addressOnly: "Address given, no map pin",
   findOnMap: "Find on map",
+  findOnMapNeedsAddress: "Write your address above to search the map.",
   searchingMap: "Searching...",
   geocodeNone: "That address was not found on the map. Your written address still reaches the team.",
   geocodePick: "Is one of these right? Tap to place the pin.",

@@ -263,6 +263,7 @@ export default function LocationPin({
           type="button"
           onClick={findOnMap}
           disabled={searching || address.trim().length < 3}
+          aria-describedby={address.trim().length < 3 ? "find-on-map-needs" : undefined}
           className={`${t.face} rounded-xl bg-brand/10 px-4 py-2.5 text-sm font-medium text-brand ring-1 ring-brand disabled:opacity-40`}
         >
           {searching ? t.searchingMap : t.findOnMap}
@@ -271,6 +272,13 @@ export default function LocationPin({
           <span className={`${t.face} text-sm text-ok`}>{t.addressSaved}</span>
         ) : null}
       </div>
+      {/* A greyed-out button with no reason given reads as broken. Said while
+          it cannot run, so the reporter knows the address comes first. */}
+      {address.trim().length < 3 ? (
+        <p id="find-on-map-needs" className={`${t.face} mt-1.5 text-xs text-ink-soft`}>
+          {t.findOnMapNeedsAddress}
+        </p>
+      ) : null}
 
       {/* Candidates, never applied on their own. The full matched name is shown
           because it is the only thing that lets someone notice their address

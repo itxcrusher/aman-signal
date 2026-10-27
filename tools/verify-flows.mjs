@@ -204,6 +204,99 @@ let reporterId = null;
   await ctx.close();
 }
 
+// ---------- 5c. The head count, when it is the question ----------
+//
+// Asked once, on the card, and sent as one value. Served here rather than read
+// from the model, so the case where people are trapped and no number was given
+// is certain instead of depending on what the model makes of a sentence. No
+// request reaches the server: both calls are answered in the browser.
+console.log("\nThe head count, when it is the question:");
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() =>
+    localStorage.setItem(
+      "amansignal.profile",
+      JSON.stringify({
+        reporterId: "flows-headcount-0000",
+        lang: "en",
+        name: "",
+        phone: "",
+        onboarded: true,
+        permissionsAsked: false,
+      }),
+    ),
+  );
+  const page = await ctx.newPage();
+  const extraction = {
+    language_detected: "ur-Latn",
+    transcript_urdu: "",
+    transcript_roman_urdu: "chhat par log phanse hain",
+    english_summary: "People are trapped on a roof.",
+    incident_type: "flood_entrapment",
+    urgency_indicators: ["trapped_people"],
+    people_affected: null,
+    vulnerable_people: [],
+    road_access: "unknown",
+    resources_required: [],
+    locations_mentioned: [],
+    missing_information: ["number of people trapped"],
+  };
+  await page.route("**/api/report", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            report_id: "flows-headcount",
+            extraction,
+            questions: [
+              { field: "people_affected", ur: "\u06a9\u062a\u0646\u06d2", en: "How many people are trapped?" },
+            ],
+            repairs: [],
+            image_dropped: false,
+          }),
+        })
+      : route.continue(),
+  );
+  let sent = null;
+  await page.route("**/api/report/confirm", async (route) => {
+    sent = JSON.parse(route.request().postData() ?? "{}");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ report_id: "flows-headcount", status: "confirmed" }),
+    });
+  });
+
+  await page.goto(BASE, { waitUntil: "networkidle", timeout: 120000 });
+  await page.locator("#report").fill("chhat par log phanse hain");
+  await page.locator('button:has-text("Send report")').click();
+  await page.waitForSelector("#people", { timeout: 30000 });
+  const label = () => page.locator('label[for="people"]').innerText();
+
+  log((await label()) === "How many people are trapped?", "the question is the count field's own label");
+  log((await page.locator("#q-people_affected").count()) === 0, "and it is not asked a second time below");
+
+  // Saying nobody is trapped makes the question moot; saying so again restores it.
+  const trapped = page.locator('section:has(#people) button:has-text("People trapped")');
+  await trapped.click();
+  const moot = await label();
+  await trapped.click();
+  log(moot === "People affected" && (await label()) === "How many people are trapped?",
+      "the question follows the reporter's own answer about who is trapped", moot);
+
+  await page.locator("#people").fill("4");
+  await page.locator('button:has-text("Confirm and send")').click();
+  await page.waitForSelector("text=has been received", { timeout: 30000 });
+  const answer = (sent?.answers ?? []).find((a) => a.field === "people_affected");
+  log(
+    sent?.corrected?.people_affected === 4 && answer?.answer === "4",
+    "one value is sent, as the reading and as the answer",
+    `${sent?.corrected?.people_affected} / ${answer?.answer}`,
+  );
+  await ctx.close();
+}
+
 // ---------- 6. The dashboard onboards, and scopes to a district ----------
 console.log("\nOperations dashboard:");
 {
