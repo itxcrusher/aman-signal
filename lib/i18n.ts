@@ -259,7 +259,7 @@ const ur: Strings = {
   replyWithUpdate:
     "جواب دینے کے لیے نیچے اپنی اطلاع میں مزید تفصیل شامل کریں: آواز، تصویر یا لکھ کر۔",
   savedOffline: "انٹرنیٹ نہیں ہے، آپ کی اطلاع محفوظ کر لی گئی ہے",
-  savedOfflineHint: "جیسے ہی سگنل آئے گا، یہ خود بخود بھیج دی جائے گی۔ ایپ بند کر دیں تب بھی محفوظ رہے گی۔",
+  savedOfflineHint: "یہ اطلاع تب بھیجی جائے گی جب سگنل ہو اور یہ صفحہ کھلا ہو۔ ایپ بند کر دیں تو بھی محفوظ رہے گی، اور سگنل کے ساتھ دوبارہ کھولنے پر بھیج دی جائے گی۔",
   pendingCount: (n) => `${n} اطلاع بھیجنا باقی ہے`,
   sendingPending: "رکی ہوئی اطلاعات بھیجی جا رہی ہیں...",
   pendingSent: (n) => `${n} رکی ہوئی اطلاع بھیج دی گئی`,
@@ -423,7 +423,7 @@ const en: Strings = {
   replyWithUpdate:
     "To reply, add an update to your report below: voice, a photo, or type it.",
   savedOffline: "No internet. Your report has been saved.",
-  savedOfflineHint: "It will send itself as soon as you have signal. It stays saved even if you close the app.",
+  savedOfflineHint: "It will send while this page is open and you have signal. If you close the app it stays saved, and sends when you open it again with signal.",
   pendingCount: (n) => `${n} report${n === 1 ? "" : "s"} waiting to send`,
   sendingPending: "Sending your waiting reports...",
   pendingSent: (n) => `${n} waiting report${n === 1 ? "" : "s"} sent`,

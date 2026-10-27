@@ -227,7 +227,13 @@ async function run(): Promise<FlushResult> {
       // no operator can see it. Deleting here on a failed confirm was the one
       // path in the whole app that could lose a report outright: the phone drops
       // its only copy and the server keeps something invisible.
-      if (!ack.ok) throw new Error(`confirm ${ack.status}`);
+      //
+      // Except for one refusal, which is the opposite of a failure. When the
+      // reply to an earlier confirmation was lost, the report arrived, and
+      // every retry is refused as already received. That refusal means the
+      // report is with the operators, so the entry is done and is removed
+      // rather than retried into the same answer.
+      if (!ack.ok && !(await alreadyReceived(ack))) throw new Error(`confirm ${ack.status}`);
 
       // Deleted only once the server has acknowledged, never merely received.
       await remove(item.id);
@@ -242,6 +248,19 @@ async function run(): Promise<FlushResult> {
   }
 
   return { sent, failed, remaining: (await queued()).length };
+}
+
+/**
+ * Whether a refused confirmation means the report has already been received.
+ *
+ * Read from the server's reason rather than from the status alone: 409 is also
+ * the answer for a report with no extraction to confirm, which is unfinished,
+ * and for one whose confirmation is still running; both stay queued.
+ */
+async function alreadyReceived(res: Response): Promise<boolean> {
+  if (res.status !== 409) return false;
+  const body = (await res.json().catch(() => null)) as { reason?: unknown } | null;
+  return body?.reason === "already_received";
 }
 
 /** True when the browser believes there is a network. Optimistic by design. */

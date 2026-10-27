@@ -3,7 +3,9 @@ import { authoriseOpsRequests } from "./ops-session.mjs";
 import { chromium } from "playwright";
 
 /**
- * A report composed with no network must survive, and send itself later.
+ * A report composed with no network must survive, and send later, when the page
+ * is open and there is signal. There is no service worker, so nothing sends
+ * while the page is closed, and the screen must not promise otherwise.
  *
  * This is the case the product exists for and did not handle: a flood takes the
  * network with it, someone records a voice note, presses send, and the request
@@ -51,7 +53,8 @@ console.log("\nComposing with no network:");
   const after = await p.locator("main").innerText();
 
   log(/Your report has been saved/i.test(after), "the report is kept, not lost");
-  log(/as soon as you have signal/i.test(after), "and says what happens next");
+  log(/while this page is open and you have signal/i.test(after), "and says what happens next");
+  log(!/as soon as/i.test(after), "without promising to send while the page is closed");
   log(!/try again/i.test(after), "it does not ask them to retype it");
 
   const stored = await p.evaluate(
@@ -271,6 +274,147 @@ console.log("\nWhen the server accepts the upload but the confirmation fails:");
   );
 
   await ctx2.close();
+}
+
+/**
+ * A confirmation that arrived, whose reply did not.
+ *
+ * The server confirms the report and the answer is lost on the way back. The
+ * phone cannot tell that from a confirmation that never arrived, so it tries
+ * again and is told the report has already been received. That refusal is the
+ * proof it worked, so the phone must count it as sent and stop retrying.
+ */
+console.log("\nWhen the confirmation arrives but its reply is lost:");
+{
+  const RUN3 = Math.random().toString(36).slice(2, 7);
+  const ctx3 = await b.newContext({ viewport: { width: 390, height: 844 }, permissions: [], locale: "en-PK" });
+  const p4 = await ctx3.newPage();
+  p4.on("pageerror", (e) => console.log("  PAGE ERROR:", e.message.slice(0, 100)));
+  await p4.goto(B, { waitUntil: "networkidle", timeout: 120000 });
+  await p4.waitForTimeout(1200);
+  await p4.locator('button:has-text("English")').click();
+  await p4.waitForTimeout(500);
+  await p4.locator('input[type="text"]').first().fill("Lost Reply Test");
+  await p4.locator('button:has-text("Not now")').click();
+  await p4.waitForTimeout(1500);
+
+  await ctx3.setOffline(true);
+  await p4.locator("#report").fill(`pani darwaze tak aa gaya hai, ${RUN3} colony, madad bhejein`);
+  await p4.locator('button:has-text("Send report")').click();
+  await p4.waitForSelector("text=/saved|No internet/i", { timeout: 60000 }).catch(() => {});
+
+  // The first confirmation reaches the server and is answered; the answer is
+  // then dropped before the page sees it. Later ones pass through untouched.
+  const confirms = [];
+  await ctx3.route("**/api/report/confirm", async (route) => {
+    const upstream = await route.fetch();
+    confirms.push(upstream.status());
+    if (confirms.length === 1) await route.abort("failed");
+    else await route.fulfill({ response: upstream });
+  });
+  await ctx3.setOffline(false);
+  await p4.reload({ waitUntil: "networkidle", timeout: 90000 });
+  // Long enough for the upload, its extraction, and the confirmation whose reply is lost.
+  const firstDeadline = Date.now() + 90000;
+  while (confirms.length < 1 && Date.now() < firstDeadline) await p4.waitForTimeout(1000);
+  await p4.waitForTimeout(1500);
+
+  // The next drain, now rather than at the page's 30 second timer.
+  await p4.reload({ waitUntil: "networkidle", timeout: 90000 });
+  const outbox = () =>
+    p4.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const r = indexedDB.open("amansignal", 1);
+          r.onsuccess = () => {
+            const g = r.result.transaction("outbox", "readonly").objectStore("outbox").getAll();
+            g.onsuccess = () => resolve(g.result.length);
+            g.onerror = () => resolve(-1);
+          };
+          r.onerror = () => resolve(-1);
+        }),
+    );
+  const deadline = Date.now() + 60000;
+  while ((await outbox()) !== 0 && Date.now() < deadline) await p4.waitForTimeout(1500);
+  const left = await outbox();
+  const attemptsAtDrain = confirms.length;
+  // Long enough for the page's own 30 second retry timer to have fired again.
+  await p4.waitForTimeout(35000);
+
+  log(confirms[0] === 200, "the first confirmation reached the server", String(confirms[0]));
+  log(confirms[1] === 409, "the retry is told it was already received", String(confirms[1]));
+  log(left === 0, "and the phone takes that as sent and empties the outbox", `${left} left`);
+  log(
+    confirms.length === attemptsAtDrain,
+    "and stops retrying",
+    `${confirms.length} confirmation attempts`,
+  );
+
+  const reporterId = await p4.evaluate(() => {
+    try {
+      return JSON.parse(localStorage.getItem("amansignal.profile") ?? "{}").reporterId ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const mine = await (await fetch(`${B}/api/my-reports?reporter_id=${reporterId}`)).json();
+  const all = mine.reports ?? [];
+  log(
+    all.length === 1 && all[0].state === "received",
+    "exactly one report arrived, and it is received",
+    all.map((r) => r.state).join(",") || "none",
+  );
+  const pendingNote = await p4.locator("main").innerText();
+  log(!/waiting to send/i.test(pendingNote), "the screen no longer says it is waiting to send");
+  await ctx3.close();
+}
+
+/**
+ * The same, on the confirmation screen itself. The reporter presses confirm,
+ * the report is confirmed, the reply is lost. Pressing it again must finish,
+ * not show an error about a report that is already with the operators.
+ */
+console.log("\nOn the confirmation screen, when the reply is lost:");
+{
+  const RUN4 = Math.random().toString(36).slice(2, 7);
+  const ctx4 = await b.newContext({ viewport: { width: 390, height: 844 }, permissions: [], locale: "en-PK" });
+  const p5 = await ctx4.newPage();
+  p5.on("pageerror", (e) => console.log("  PAGE ERROR:", e.message.slice(0, 100)));
+  await p5.goto(B, { waitUntil: "networkidle", timeout: 120000 });
+  await p5.waitForTimeout(1200);
+  await p5.locator('button:has-text("English")').click();
+  await p5.waitForTimeout(500);
+  await p5.locator('input[type="text"]').first().fill("Live Lost Reply");
+  await p5.locator('button:has-text("Not now")').click();
+  await p5.waitForTimeout(1500);
+
+  await p5.locator("#report").fill(`gali mein ghutnon tak pani hai, ${RUN4} chowk, bachay phanse hain`);
+  await p5.locator('button:has-text("Send report")').click();
+  await p5.waitForSelector("text=This is what we understood", { timeout: 180000 });
+
+  const statuses = [];
+  await ctx4.route("**/api/report/confirm", async (route) => {
+    const upstream = await route.fetch();
+    statuses.push(upstream.status());
+    if (statuses.length === 1) await route.abort("failed");
+    else await route.fulfill({ response: upstream });
+  });
+  await p5.locator('button:has-text("Confirm and send")').click();
+  // Inside main: the framework's route announcer is also role="alert" and is
+  // always present, so an unscoped wait returns before anything has happened.
+  await p5.waitForSelector('main [role="alert"]', { timeout: 60000 }).catch(() => {});
+  const first = await p5.locator("main").innerText();
+  log(
+    /This is what we understood/.test(first) && /No internet connection/.test(first),
+    "a lost reply leaves the reporter on their card, told to try again",
+  );
+
+  await p5.locator('button:has-text("Confirm and send")').click();
+  await p5.waitForSelector("text=has been received", { timeout: 60000 }).catch(() => {});
+  const second = await p5.locator("main").innerText();
+  log(statuses[1] === 409, "the second press is told it was already received", String(statuses[1]));
+  log(/has been received/.test(second), "and the reporter is shown it was received, not an error");
+  await ctx4.close();
 }
 
 await b.close();

@@ -49,15 +49,7 @@ function changedFields(before: Extraction, after: Extraction): (keyof Extraction
  * the answer.
  */
 export async function POST(req: NextRequest) {
-  let body: {
-    report_id?: string;
-    answers?: { field: string; question: string; answer: string }[];
-    corrected?: unknown;
-    pin?: { lat?: unknown; lon?: unknown };
-    address?: string;
-    /** Flushed from the offline outbox; the reporter never saw this screen. */
-    queued_offline?: boolean;
-  };
+  let body: ConfirmBody;
   try {
     body = await req.json();
   } catch {
@@ -67,10 +59,60 @@ export async function POST(req: NextRequest) {
   const rid = body.report_id;
   if (!rid) return NextResponse.json({ error: "report_id required" }, { status: 400 });
 
+  // One confirmation of a report at a time. The draft check below and the
+  // status change after deduplication are separated by a network call, so two
+  // requests for the same report (a retry sent while the first is still being
+  // processed) would both pass the check and both build an incident. A second
+  // request is told the first is still running, and a caller retries later.
+  if (confirming.has(rid)) {
+    return NextResponse.json(
+      { error: "this report is already being confirmed", reason: "in_progress" },
+      { status: 409 },
+    );
+  }
+  confirming.add(rid);
+  try {
+    return await confirmDraft(rid, body);
+  } finally {
+    confirming.delete(rid);
+  }
+}
+
+type ConfirmBody = {
+  report_id?: string;
+  answers?: { field: string; question: string; answer: string }[];
+  corrected?: unknown;
+  pin?: { lat?: unknown; lon?: unknown };
+  address?: string;
+  /** Flushed from the offline outbox; the reporter never saw this screen. */
+  queued_offline?: boolean;
+};
+
+/**
+ * Reports with a confirmation in progress. In memory, because this server is a
+ * single process over a single SQLite file.
+ */
+const confirming = new Set<string>();
+
+async function confirmDraft(rid: string, body: ConfirmBody) {
   const row = getReport(rid);
   if (!row) return NextResponse.json({ error: "report not found" }, { status: 404 });
   if (row.status !== "draft") {
-    return NextResponse.json({ error: "report already confirmed" }, { status: 409 });
+    // A machine-readable reason, because a phone that lost the reply to its own
+    // confirmation retries it, and this refusal is the proof that the first
+    // attempt arrived. It must be distinguishable from the refusal below, which
+    // means the report is not finished. "Received" rather than "confirmed":
+    // a report an operator has already read and dismissed is answered the
+    // same way, and for the phone the meaning is identical.
+    return NextResponse.json(
+      {
+        error: "report already received",
+        reason: "already_received",
+        report_id: rid,
+        incident_id: row.incident_id,
+      },
+      { status: 409 },
+    );
   }
   if (!row.extraction_json) {
     return NextResponse.json({ error: "report has no extraction to confirm" }, { status: 409 });

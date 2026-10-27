@@ -374,6 +374,7 @@ export default function CitizenIntake() {
 
   async function confirmReport() {
     setPhase("sending");
+    setError(null);
     const payload = {
       report_id: reportId,
       // What the reporter confirmed, including anything they corrected on the
@@ -387,13 +388,40 @@ export default function CitizenIntake() {
         .filter((q) => answers[q.field]?.trim())
         .map((q) => ({ field: q.field, question: q.en, answer: answers[q.field].trim() })),
     };
-    const res = await fetch("/api/report/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/report/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      // An earlier press whose reply was lost may still be running on the
+      // server. Its result is the answer, so wait for it rather than fail.
+      for (let wait = 0; res.status === 409 && wait < 15; wait++) {
+        const j = await res.clone().json().catch(() => ({}));
+        if (j.reason !== "in_progress") break;
+        await new Promise((r) => setTimeout(r, 2000));
+        res = await fetch("/api/report/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+    } catch {
+      // The request or its reply was lost. Back to the card with everything
+      // still on it, so pressing confirm again retries rather than starting over.
+      setError(stringsFor(profile?.lang ?? "ur").errorNetwork);
+      setPhase("review");
+      return;
+    }
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
+      // A retry after a lost reply: the first attempt arrived and the report is
+      // already with the operators, which is what this screen was waiting for.
+      if (res.status === 409 && j.reason === "already_received") {
+        setPhase("done");
+        return;
+      }
       setError(j.error ?? "Could not confirm the report.");
       setPhase("error");
       return;
@@ -739,6 +767,12 @@ export default function CitizenIntake() {
                   </div>
                 ))}
               </section>
+            ) : null}
+
+            {error ? (
+              <p role="alert" className={`${t.face} rounded-xl bg-red-50 p-4 text-critical`}>
+                {error}
+              </p>
             ) : null}
 
             <button
