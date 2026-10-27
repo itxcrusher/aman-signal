@@ -19,6 +19,8 @@ docker build -t amansignal .
 docker run -d --name amansignal \
   -p 80:3000 \
   -e DASHSCOPE_API_KEY=sk-your-key \
+  -e OPS_PASSPHRASE=choose-one \
+  -e FIELD_PASSPHRASE=choose-another \
   -v amansignal-data:/data \
   --restart unless-stopped \
   amansignal
@@ -32,23 +34,39 @@ curl -s http://localhost/api/health
 
 A healthy response reports the database row count and that the model credential is configured. It returns **503 when degraded**, so a deployment that cannot reach its database or has no key fails its health check instead of silently accepting reports it cannot process.
 
-## Alibaba Cloud ECS
+## A Linux VM
 
-1. Create an ECS instance (Ubuntu 22.04, `ecs.t6-c1m1.large` or larger) in **Singapore (ap-southeast-1)**, the same region as the Model Studio quota, so inference calls stay in-region.
-2. In the security group, allow inbound **80** and **443** and restrict **22** to your own address.
-3. On the instance:
+The reference deployment is a Google Compute Engine `e2-small` (2 shared vCPU, 2 GB) in `asia-south1` with a 30 GB balanced disk and a reserved static address. Any Ubuntu 22.04 or 24.04 VM with a public address works the same way; inference calls go to the Singapore endpoint wherever the host runs.
+
+1. Create the VM, reserve a static address for it, and allow inbound **80** and **443**; restrict **22** to your own address.
+2. Point a domain's A record at the address and wait for it to resolve. `provision.sh` checks that it does before requesting a certificate.
+3. On the VM, clone the repo into your home directory and run the provisioning script. It installs Docker, nginx and certbot, builds the image, starts the container on `127.0.0.1:3000` behind nginx, and obtains the certificate:
 
 ```bash
-sudo apt update && sudo apt install -y docker.io git
-sudo systemctl enable --now docker
-git clone https://github.com/itxcrusher/aman-signal.git && cd aman-signal
-sudo docker build -t amansignal .
-sudo docker run -d --name amansignal -p 80:3000 \
-  -e DASHSCOPE_API_KEY=sk-your-key \
-  -v amansignal-data:/data --restart unless-stopped amansignal
+git clone https://github.com/itxcrusher/aman-signal.git ~/aman-signal && cd ~/aman-signal
+export DASHSCOPE_API_KEY=sk-...
+export OPS_PASSPHRASE=...          # opens the operator board
+export FIELD_PASSPHRASE=...        # opens the field-team screen
+export AMANSIGNAL_DOMAIN=amansignal.example.com
+export CERTBOT_EMAIL=you@example.com
+sudo -E bash deploy/provision.sh
 ```
 
-4. Verify from your own machine, not from the instance: `curl http://<public-ip>/api/health`.
+4. Verify from your own machine, not from the VM: `curl https://<domain>/api/health`.
+
+`AMANSIGNAL_SKIP_TLS=1` serves plain HTTP on the host's address while DNS is still propagating; re-run without it to add the certificate. `deploy/create-instance.sh` creates a matching instance on Alibaba Cloud ECS in Singapore with the `aliyun` CLI; it has not been run to completion against a live account.
+
+## Redeploying
+
+`provision.sh` rewrites the nginx site and runs certbot again. To ship a new build without touching either, use `deploy/redeploy.sh`. It pulls, builds while the old container keeps serving, reads the environment off the running container so the credentials are never written to a file, swaps the containers, and rolls back if the new one does not report healthy.
+
+```bash
+cp ~/aman-signal/deploy/redeploy.sh ~/ && bash ~/redeploy.sh
+```
+
+Run it from a copy, because it pulls the checkout it lives in. Set `REPO_DIR` if the checkout is not at `~/aman-signal`.
+
+The health check confirms that the database is reachable and the model key is set, not that the model answers. After a redeploy, load the citizen page and the board, and send one test report.
 
 ## HTTPS
 
@@ -69,8 +87,12 @@ Run the container on `-p 127.0.0.1:3000:3000` once nginx fronts it, so the app i
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `DASHSCOPE_API_KEY` | yes | none | Model Studio credential; reports cannot be processed without it |
+| `OPS_PASSPHRASE` | for the board | none | Opens the operator board at `/ops`; unset, nobody can sign in |
+| `FIELD_PASSPHRASE` | for field teams | none | Opens the field-team screen at `/field`; unset, nobody can sign in |
+| `AMANSIGNAL_DEMO` | no | off | `1` prints both passphrases on the sign-in pages and marks the board as fictional. Never set it on a deployment holding real reports |
 | `AMANSIGNAL_DATA_DIR` | no | `./data` (`/data` in Docker) | Database and uploaded media |
 | `AMANSIGNAL_MODEL` | no | `qwen3.5-omni-flash` | Extraction model |
+| `DASHSCOPE_MODEL` | no | `qwen3.5-omni-flash` | Model that writes each incident's one-line situation summary |
 | `AMANSIGNAL_EMBED_MODEL` | no | `text-embedding-v4` | Deduplication embeddings |
 | `DASHSCOPE_BASE_URL` | no | Singapore endpoint | Override for another region |
 | `HOSTNAME` | in containers | machine hostname | **Must be `0.0.0.0`** |
