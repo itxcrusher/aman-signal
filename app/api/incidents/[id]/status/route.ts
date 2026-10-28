@@ -38,7 +38,8 @@ export async function POST(
   }
 
   try {
-    setIncidentStatus(id, status, `operator:${operator}`, body.assigned_to?.trim() || undefined);
+    // Bounded like the assign route, so every assignable team name can be signed in as.
+    setIncidentStatus(id, status, `operator:${operator}`, body.assigned_to?.trim().slice(0, 120) || undefined);
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
