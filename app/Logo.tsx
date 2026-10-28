@@ -5,7 +5,7 @@ import { WORDMARK, METRICS } from "./logo-path";
  * The AmanSignal logo: the mark and the wordmark as one object.
  *
  * The wordmark is outlines rather than text, so the logo here is byte-identical
- * to the one in the presentation, the briefs and the link preview. Setting it
+ * to the one in the link preview and in documents. Setting it
  * as live text would mean loading a display face on a product whose whole
  * premise is a bad connection, and it would still not match anywhere the face
  * failed to load.

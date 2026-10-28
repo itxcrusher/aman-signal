@@ -201,8 +201,8 @@ if (held.length) {
 
 /**
  * Said plainly rather than asserted, because deduplication is a judgement made
- * by a model at demonstration time and the honest thing before standing in
- * front of judges is to know which way it went.
+ * by a model at demonstration time and the honest thing before showing the
+ * board to anyone is to know which way it went.
  */
 console.log("");
 if (mine.length === 1 && mine[0].reports.length === 3) {

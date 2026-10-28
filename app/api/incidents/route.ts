@@ -93,7 +93,7 @@ export async function GET() {
   views.sort((a, b) => b.signal - a.signal);
   /*
    * Carried with the incidents so the board can say what it is showing.
-   * A judge looking at a phone number needs to know whether it belongs to
+   * Anyone looking at a phone number needs to know whether it belongs to
    * somebody.
    */
   return NextResponse.json({ incidents: views, demo: isDemo() });
