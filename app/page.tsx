@@ -453,7 +453,15 @@ export default function CitizenIntake() {
         setPhase("done");
         return;
       }
-      setError(j.error ?? "Could not confirm the report.");
+      // Still running after half a minute of waiting. Back to the card, so the
+      // next press either finds it received or waits for it again.
+      if (res.status === 409 && j.reason === "in_progress") {
+        setError(stringsFor(profile?.lang ?? "ur").errorGeneric);
+        setPhase("review");
+        return;
+      }
+      // The server's own words are for developers; the reporter reads their language.
+      setError(stringsFor(profile?.lang ?? "ur").errorGeneric);
       setPhase("error");
       return;
     }
