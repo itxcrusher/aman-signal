@@ -79,6 +79,9 @@ export async function embed(
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: EMBED_MODEL, input: texts }),
+      // A hung call would hold the report's confirmation open; on timeout the
+      // token-overlap fallback below takes over.
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return null;
     const j = await res.json();
