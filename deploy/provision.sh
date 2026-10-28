@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Provision a fresh Ubuntu 22.04/24.04 host to run AmanSignal behind nginx with TLS.
 #
-# Idempotent: safe to re-run. Re-running after a git pull redeploys the app.
+# Idempotent: safe to re-run, and each run rewrites the nginx site and runs
+# certbot again. To ship a new build to a host that already serves HTTPS, use
+# deploy/redeploy.sh, which touches neither.
 #
 # USAGE (on the server, as a sudo-capable user)
 #   export DASHSCOPE_API_KEY=sk-...

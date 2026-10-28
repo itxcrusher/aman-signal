@@ -36,7 +36,7 @@ A healthy response reports the database row count and that the model credential 
 
 ## A Linux VM
 
-The reference deployment is a Google Compute Engine `e2-small` (2 shared vCPU, 2 GB) in `asia-south1` with a 30 GB balanced disk and a reserved static address. Any Ubuntu 22.04 or 24.04 VM with a public address works the same way; inference calls go to the Singapore endpoint wherever the host runs.
+Tested on a Google Compute Engine `e2-small` (2 shared vCPU, 2 GB) in `asia-south1` with a 30 GB balanced disk and a reserved static address. Any Ubuntu 22.04 or 24.04 VM with a public address works the same way; inference calls go to the Singapore endpoint wherever the host runs.
 
 1. Create the VM, reserve a static address for it, and allow inbound **80** and **443**; restrict **22** to your own address.
 2. Point a domain's A record at the address and wait for it to resolve. `provision.sh` checks that it does before requesting a certificate.
@@ -58,7 +58,7 @@ sudo -E bash deploy/provision.sh
 
 ## Redeploying
 
-`provision.sh` rewrites the nginx site and runs certbot again. To ship a new build without touching either, use `deploy/redeploy.sh`. It pulls, builds while the old container keeps serving, reads the environment off the running container so the credentials are never written to a file, swaps the containers, and rolls back if the new one does not report healthy.
+`provision.sh` rewrites the nginx site and runs certbot again. To ship a new build without touching either, use `deploy/redeploy.sh`. It pulls, builds while the old container keeps serving, carries the app's settings over from the running container (every variable in the table below except `AMANSIGNAL_DATA_DIR`, which the script fixes at `/data`) so the credentials are never written to a file, swaps the containers, and rolls back if the new one does not report healthy.
 
 ```bash
 cp ~/aman-signal/deploy/redeploy.sh ~/ && bash ~/redeploy.sh
@@ -91,7 +91,7 @@ Run the container on `-p 127.0.0.1:3000:3000` once nginx fronts it, so the app i
 | `FIELD_PASSPHRASE` | for field teams | none | Opens the field-team screen at `/field`; unset, nobody can sign in |
 | `AMANSIGNAL_DEMO` | no | off | `1` prints both passphrases on the sign-in pages and marks the board as fictional. Never set it on a deployment holding real reports |
 | `AMANSIGNAL_DATA_DIR` | no | `./data` (`/data` in Docker) | Database and uploaded media |
-| `AMANSIGNAL_MODEL` | no | `qwen3.5-omni-flash` | Extraction model |
+| `AMANSIGNAL_MODEL` | no | `qwen3.5-omni-flash` | Extraction model, and the voice that reads the confirmation back |
 | `DASHSCOPE_MODEL` | no | `qwen3.5-omni-flash` | Model that writes each incident's one-line situation summary |
 | `AMANSIGNAL_EMBED_MODEL` | no | `text-embedding-v4` | Deduplication embeddings |
 | `DASHSCOPE_BASE_URL` | no | Singapore endpoint | Override for another region |
