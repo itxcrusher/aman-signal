@@ -57,7 +57,11 @@ export async function POST(req: NextRequest) {
   }
 
   const rid = body.report_id;
-  if (!rid) return NextResponse.json({ error: "report_id required" }, { status: 400 });
+  // A string, not merely truthy: the lock below compares by identity, so an
+  // array holding the id would slip past it.
+  if (typeof rid !== "string" || !rid) {
+    return NextResponse.json({ error: "report_id required" }, { status: 400 });
+  }
 
   // One confirmation of a report at a time. The draft check below and the
   // status change after deduplication are separated by a network call, so two
@@ -93,6 +97,9 @@ type ConfirmBody = {
  * single process over a single SQLite file.
  */
 const confirming = new Set<string>();
+
+/** The largest head count a reporter can enter; the confirmation card caps its field at the same value. */
+const MAX_REPORTED_COUNT = 9999;
 
 async function confirmDraft(rid: string, body: ConfirmBody) {
   const row = getReport(rid);
@@ -140,6 +147,15 @@ async function confirmDraft(rid: string, body: ConfirmBody) {
       );
     }
     extraction = ownWords(parsed.data);
+    // Only a count the reporter changed is capped. The model's own reading comes
+    // back unchanged when the card was left alone, and capping it would record
+    // a correction the reporter never made.
+    if (
+      extraction.people_affected !== null &&
+      extraction.people_affected !== modelReading.people_affected
+    ) {
+      extraction.people_affected = Math.min(MAX_REPORTED_COUNT, extraction.people_affected);
+    }
   }
 
   const answers = Array.isArray(body.answers) ? body.answers.slice(0, 2) : [];
@@ -154,14 +170,16 @@ async function confirmDraft(rid: string, body: ConfirmBody) {
     (k) => !(answered.has(k) && modelReading[k] === null),
   );
   const correctedNote = corrected.length ? ` corrected=${corrected.join(",")}` : "";
-  if (corrected.length) {
-    updateReport(rid, {
-      citizen_corrections_json: JSON.stringify({
-        fields: corrected,
-        model: Object.fromEntries(corrected.map((k) => [k, modelReading[k]])),
-      }),
-    });
-  }
+  // Written on every attempt, so a retry after the reporter undid a change
+  // clears the record an earlier, failed attempt left behind.
+  updateReport(rid, {
+    citizen_corrections_json: corrected.length
+      ? JSON.stringify({
+          fields: corrected,
+          model: Object.fromEntries(corrected.map((k) => [k, modelReading[k]])),
+        })
+      : null,
+  });
   // A count the reporter supplied resolves the gap that asked for it.
   if (corrected.includes("people_affected") && extraction.people_affected !== null) {
     extraction.missing_information = pruneMissing(extraction.missing_information, "people_affected");
@@ -180,7 +198,7 @@ async function confirmDraft(rid: string, body: ConfirmBody) {
     if (a.field === "people_affected" && a.answer?.trim()) {
       const n = parseInt(a.answer.replace(/\D/g, ""), 10);
       if (Number.isFinite(n)) {
-        extraction.people_affected = n;
+        extraction.people_affected = Math.min(MAX_REPORTED_COUNT, n);
         extraction.missing_information = pruneMissing(
           extraction.missing_information,
           "people_affected",
