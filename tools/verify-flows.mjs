@@ -194,7 +194,9 @@ let reporterId = null;
       "the update is acknowledged either way",
       /reached the team/.test(afterUpdate) ? "attached" : "first report still under review");
 
-  await page.locator('button:has-text("I am safe now")').click();
+  // An update that attached is listed as a report of its own, with its own
+  // safe button, so there may be two.
+  await page.getByRole("button", { name: "I am safe now" }).first().click();
   await page.waitForSelector("text=/you are safe/i", { timeout: 60000 });
   const safe = await page.locator("main").innerText();
   log(/You reported that you are safe/.test(safe), "marking safe is recorded");
