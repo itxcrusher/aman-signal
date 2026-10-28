@@ -10,6 +10,7 @@ Evaluation utilities. Everything here measures model behaviour (transcription qu
 | `seed-demo.mjs` | Builds the demo scenario through the live API. |
 | `reset-data.mjs` | Returns the local database to a known state. |
 | `screenshot.mjs` | Captures a page at a true CSS viewport and reports what rendered. |
+| `make-test-images.py` | Writes the image fixtures the photo, follow-up and field suites attach, to `/tmp/imgtest/`. Needs Pillow. |
 
 ## test-urdu-voice.py
 
